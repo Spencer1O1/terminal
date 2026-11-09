@@ -212,10 +212,6 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
             return winrt::make<SearchForTextArgs>();
         case Model::ShortcutAction::GlobalSummon:
             return winrt::make<GlobalSummonArgs>();
-        case Model::ShortcutAction::HudMode:
-            return std::get<0>(GlobalSummonArgs::HudModeFromJson({}));
-        case Model::ShortcutAction::HudVisibility:
-            return std::get<0>(GlobalSummonArgs::HudVisibilityFromJson({}));
         case Model::ShortcutAction::MoveFocus:
             return winrt::make<MoveFocusArgs>();
         case Model::ShortcutAction::MovePane:

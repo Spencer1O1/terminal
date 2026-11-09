@@ -24,6 +24,14 @@ int main()
     assert(GetLayeredWindowAttributes(window, &color, &alpha, &flags));
     assert(alpha == 255 && flags == LWA_ALPHA);
     assert(input.SetPassive(window, true)); // idempotent
+    const auto other = CreateWindowExW(0, L"STATIC", L"HUD unrelated window", WS_POPUP, 0, 0, 100, 100, nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+    assert(other);
+    const auto otherStyle = GetWindowLongPtrW(other, GWL_EXSTYLE);
+    assert(!input.SetPassive(other, true));
+    assert(!input.SetPassive(other, false));
+    assert(GetWindowLongPtrW(other, GWL_EXSTYLE) == otherStyle);
+    assert(GetWindowLongPtrW(window, GWL_EXSTYLE) == passive);
+    DestroyWindow(other);
     // Unrelated native style changes must survive releasing HUD input mode.
     SetWindowLongPtrW(window, GWL_EXSTYLE, passive | WS_EX_TOOLWINDOW);
     assert(input.SetPassive(window, false));

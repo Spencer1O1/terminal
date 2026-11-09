@@ -24,6 +24,8 @@ public static class HudProbe {
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr window,int id,uint modifiers,uint key);
+    [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr window,int id);
     [DllImport("user32.dll")] public static extern uint MapVirtualKeyW(uint code,uint type);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window,IntPtr order,int x,int y,int width,int height,uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int command);
@@ -56,7 +58,7 @@ function Assert-Probe([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
     Write-Output "PASS: $Message"
 }
-function Invoke-HudChord([byte]$Key) {
+function Invoke-FixtureChord([byte]$Key) {
     $foreground = [HudProbe]::GetForegroundWindow()
     if ($foreground -ne $target -and $foreground -ne $background.Handle) {
         throw 'Desktop focus moved outside the owned fixture; stopping before input injection.'
@@ -102,7 +104,7 @@ $fixtureSettings = @{
     hudActiveOpacity=$ActiveOpacity
     initialCols=60; initialRows=20
     defaultProfile=$profileId
-    disabledProfileSources=@('Windows.Terminal.Wsl','Windows.Terminal.PowershellCore','Windows.Terminal.Azure','Windows.Terminal.SSH')
+    disabledProfileSources=@('Microsoft.WSL','Windows.Terminal.PowershellCore','Windows.Terminal.Azure','Windows.Terminal.VisualStudio','Windows.Terminal.SSH')
     profiles=@{ list=@(@{
         guid=$profileId; name='HUD owned smoke fixture'; commandline=('"' + (Join-Path $PSHOME 'pwsh.exe') + '" -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $PSScriptRoot 'SmokeShell.ps1') + '" -Receipt "' + $receipt + '"')
         startingDirectory=$EvidenceDirectory; elevate=$false; opacity=65; useAcrylic=$false; font=@{face='Consolas';size=18}; background='#000000'; foreground='#FFFFFF'
@@ -111,6 +113,10 @@ $fixtureSettings = @{
         @{keys='win+sc(41)';command='unbound'},
         @{keys='win+shift+sc(41)';command='unbound'},
         @{keys='alt+sc(41)';command='unbound'},
+        @{keys='ctrl+alt+f5';command=@{action='renameWindow';name='review-smoke'}},
+        @{keys='ctrl+alt+f7';command='toggleFullscreen'},
+        @{keys='ctrl+alt+f8';command=@{action='renameWindow';name='_quake'}},
+        @{keys='ctrl+alt+f6';command=@{action='globalSummon';name=$WindowName;toggleVisibility=$false;dropdownDuration=0;monitor='any'}},
         @{keys='ctrl+alt+f11';id='Terminal.HudMode'},
         @{keys='ctrl+alt+f12';id='Terminal.HudVisibility'}
     )
@@ -130,6 +136,10 @@ $background.Show()
 Wait-Ui
 $process=$null
 try {
+    foreach ($key in @(0x74,0x75,0x76,0x77,0x7A,0x7B)) {
+        if (-not [HudProbe]::RegisterHotKey([IntPtr]::Zero,$key,0x4006,$key)) { throw "Fixture shortcut is already occupied: $key" }
+        [void][HudProbe]::UnregisterHotKey([IntPtr]::Zero,$key)
+    }
     $process=Start-Process -FilePath $exe.FullName -ArgumentList '-w',$WindowName,'-p',$profileId -WorkingDirectory $portableRoot -PassThru
     $target=[IntPtr]::Zero
     for ($attempt=0;$attempt -lt 150;$attempt++) {
@@ -178,7 +188,14 @@ try {
         Write-Output ('Active sample RGB: {0},{1},{2}' -f $activeSample.R,$activeSample.G,$activeSample.B)
         Assert-BackgroundOpacity $ActiveOpacity
     } finally { $activeGraphics.Dispose(); $activeBitmap.Dispose() }
-    Invoke-HudChord 0x7A # F11
+    Invoke-FixtureChord 0x76 # Ordinary fullscreen action cannot break HUD presentation.
+    Wait-Ui 300
+    $presentation=Read-State $target
+    Assert-Probe ($presentation.rect.Left -eq $screen.Left -and $presentation.rect.Top -eq $screen.Top -and $presentation.rect.Right -eq $screen.Right -and $presentation.rect.Bottom -eq $screen.Bottom) 'HUD retained fullscreen presentation after ordinary fullscreen action'
+    Invoke-FixtureChord 0x75 # Generic globalSummon must activate, never toggle.
+    Wait-Ui 400
+    Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target -and ((Read-State $target).exstyle -band 0x20) -eq 0) 'generic summon of HUD retains Active input'
+    Invoke-FixtureChord 0x7A # F11
     Wait-Ui 800
     $state=Read-State $target
     Assert-Probe ($state.visible -and ($state.exstyle -band 0x80020) -eq 0x80020) 'interaction shortcut made HUD Passive'
@@ -210,20 +227,20 @@ try {
     [HudProbe]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
     Wait-Ui 200
     Assert-Probe ($script:fixtureClicks -eq 1) 'one physical click reached owned background through Passive HUD'
-    Invoke-HudChord 0x7B # F12
+    Invoke-FixtureChord 0x7B # F12
     Wait-Ui 500
     Assert-Probe (-not [HudProbe]::IsWindowVisible($target)) 'visibility shortcut hid Passive'
-    Invoke-HudChord 0x7B
+    Invoke-FixtureChord 0x7B
     Wait-Ui 500
     $state=Read-State $target
     Assert-Probe ($state.visible -and ($state.exstyle -band 0x20) -ne 0 -and [HudProbe]::GetForegroundWindow() -eq $background.Handle) 'visibility shortcut restored Passive without activation'
-    Invoke-HudChord 0x7A
+    Invoke-FixtureChord 0x7A
     Wait-Ui 500
     Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'interaction shortcut restored Active focus'
-    Invoke-HudChord 0x7B
+    Invoke-FixtureChord 0x7B
     Wait-Ui 500
     Assert-Probe (-not [HudProbe]::IsWindowVisible($target)) 'visibility shortcut hid Active'
-    Invoke-HudChord 0x7B
+    Invoke-FixtureChord 0x7B
     Wait-Ui 500
     Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'visibility shortcut restored Active focus'
     $updatedOpacity=if ($ActiveOpacity -eq 35) { 65 } else { 35 }
@@ -232,10 +249,10 @@ try {
     $updatedSettings | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $settingsPath -Encoding utf8NoBOM
     Wait-Ui 1500
     Assert-BackgroundOpacity $updatedOpacity
-    Invoke-HudChord 0x7A
+    Invoke-FixtureChord 0x7A
     Wait-Ui 600
     Assert-Probe ((Read-State $target).exstyle -band 0x20) 'opacity reload preserved Passive input behavior'
-    Invoke-HudChord 0x7A
+    Invoke-FixtureChord 0x7A
     Wait-Ui 600
     Assert-BackgroundOpacity $updatedOpacity
     $shell=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
@@ -262,16 +279,34 @@ try {
     }
     Assert-BackgroundOpacity 65 ([int](($normalAfter.rect.Left+$normalAfter.rect.Right)/2)) ($normalAfter.rect.Bottom-80) 'Normal'
     Assert-Probe ($null -ne (Get-Process -Id $shell.pid -ErrorAction SilentlyContinue)) 'same shell survived leaving HUD mode'
+    Invoke-FixtureChord 0x7A
+    Invoke-FixtureChord 0x7B
+    Wait-Ui 300
+    $withoutHud=Read-State $target
+    Assert-Probe (($withoutHud.exstyle -band 0x28) -eq 0 -and $withoutHud.rect.Equals($normalAfter.rect)) 'global HUD actions left an ordinary window unchanged'
     Invoke-ModeToggle
     Wait-Ui 800
     $again=Read-State $target
     Assert-Probe ($again.rect.Left -eq $screen.Left -and $again.rect.Top -eq $screen.Top -and $again.rect.Right -eq $screen.Right -and $again.rect.Bottom -eq $screen.Bottom) 'mode toggle re-entered HUD on the same monitor'
     Invoke-ModeToggle
     Wait-Ui 500
+    # Exercise a queued activation concurrently with a local mode change.
+    for ($cycle=0;$cycle -lt 8;$cycle++) {
+        Invoke-ModeToggle
+        Wait-Ui 200
+        Invoke-FixtureChord 0x75
+        Invoke-ModeToggle
+        Wait-Ui 300
+        $ordinary=Read-State $target
+        Assert-Probe (($ordinary.exstyle -band 0x20) -eq 0 -and ($ordinary.rect.Right-$ordinary.rect.Left) -lt $screen.Width) 'queued summon did not restore HUD after leaving its mode'
+    }
     # Use a wide window so the Settings navigation pane is expanded. Placement
     # restoration was verified above before changing the fixture geometry.
     [void][HudProbe]::SetWindowPos($target,[IntPtr]::Zero,$screen.Left+80,$screen.Top+80,$screen.Width-160,$screen.Height-160,20)
     Wait-Ui 500
+    Invoke-ModeToggle
+    Wait-Ui 300
+    # Opening Settings from HUD must return to ordinary window presentation.
     # Exercise the real settings control and its save path in this private copy.
     if ([HudProbe]::GetForegroundWindow() -ne $target) { throw 'Settings test requires the owned Terminal to be focused.' }
     [HudProbe]::keybd_event(0x11,0,0,[UIntPtr]::Zero)
@@ -282,6 +317,8 @@ try {
     $root=[System.Windows.Automation.AutomationElement]::FromHandle($target)
     $appearance=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty,'AppearanceNavItem'))
     Assert-Probe ($null -ne $appearance) 'Appearance settings navigation is accessible'
+    $settingsState=Read-State $target
+    Assert-Probe (($settingsState.exstyle -band 0x28) -eq 0 -and ($settingsState.rect.Right-$settingsState.rect.Left) -lt $screen.Width) 'opening Settings left HUD and restored ordinary input/presentation'
     ([System.Windows.Automation.SelectionItemPattern]$appearance.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)).Select()
     Wait-Ui 600
     $opacityControls=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'HUD Active opacity (%)'))
@@ -304,6 +341,45 @@ try {
     Wait-Ui 800
     $savedSettings=Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
     Assert-Probe ($savedSettings.hudActiveOpacity -eq 47) 'Appearance UI saved the requested HUD opacity'
+    # Select the terminal tab explicitly, as a user would before entering HUD.
+    $tabs=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::TabItem))
+    $terminalTab=$null
+    foreach ($tab in $tabs) {
+        if ($tab.Current.Name -eq 'HUD owned smoke fixture') { $terminalTab=$tab; break }
+    }
+    Assert-Probe ($null -ne $terminalTab) 'existing terminal tab is available for manual selection'
+    ([System.Windows.Automation.SelectionItemPattern]$terminalTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)).Select()
+    Wait-Ui 300
+    Invoke-ModeToggle
+    Wait-Ui 500
+    Assert-BackgroundOpacity 47
+    $afterSettings=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
+    Assert-Probe ($afterSettings.pid -eq $shell.pid) 'HUD return from Settings reused the existing terminal session'
+    Invoke-FixtureChord 0x7A
+    Wait-Ui 400
+    Assert-BackgroundOpacity 0 -Context 'Passive terminal after Settings'
+    Invoke-FixtureChord 0x7A
+    Wait-Ui 300
+    Invoke-ModeToggle
+    Wait-Ui 300
+    Invoke-ModeToggle
+    Wait-Ui 300
+    Invoke-FixtureChord 0x77 # Rename to the reserved Quake name.
+    Wait-Ui 500
+    $quake=Read-State $target
+    Assert-Probe (($quake.exstyle -band 0x20) -eq 0 -and ($quake.rect.Bottom-$quake.rect.Top) -lt $screen.Height) 'renaming HUD to Quake released HUD input and sizing'
+    Invoke-ModeToggle
+    Wait-Ui 300
+    $stillQuake=Read-State $target
+    Assert-Probe (($stillQuake.rect.Bottom-$stillQuake.rect.Top) -lt $screen.Height) 'Quake refused simultaneous HUD mode'
+    Invoke-FixtureChord 0x74 # Rename to an ordinary window again.
+    Wait-Ui 300
+    Invoke-ModeToggle
+    Wait-Ui 400
+    $backToHud=Read-State $target
+    Assert-Probe ($backToHud.rect.Left -eq $screen.Left -and $backToHud.rect.Top -eq $screen.Top -and $backToHud.rect.Right -eq $screen.Right -and $backToHud.rect.Bottom -eq $screen.Bottom) 'ordinary renamed window can enter HUD again'
+    Invoke-ModeToggle
+    Wait-Ui 300
     Write-Output 'DESKTOP_SMOKE_PASSED'
 } finally {
     if ($process -and -not $process.HasExited) {

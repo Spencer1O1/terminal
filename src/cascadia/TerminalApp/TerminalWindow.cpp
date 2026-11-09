@@ -1180,6 +1180,10 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalWindow::HudModeEnabled(const bool enabled)
     {
+        if (enabled && _root && !_root->CanEnterHudMode())
+        {
+            return;
+        }
         if (_isHudWindow != enabled)
         {
             _isHudWindow = enabled;
@@ -1207,6 +1211,11 @@ namespace winrt::TerminalApp::implementation
             return;
         }
         const auto newIsQuakeMode = _WindowProperties->IsQuakeWindow();
+        if (newIsQuakeMode && IsHudWindow())
+        {
+            // Quake and HUD have independent sizing and input policies.
+            HudModeEnabled(false);
+        }
         if (newIsQuakeMode != oldIsQuakeMode)
         {
             // If we're entering Quake Mode from ~Focus Mode, then this will enter Focus Mode

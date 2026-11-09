@@ -3763,8 +3763,13 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         {
             return;
         }
+        const auto modeChanged = _hudEnabled != enabled;
         _hudEnabled = enabled;
-        get_self<ControlCore>(_core)->SetHudMode(enabled, passive, activeOpacity);
+        const auto appearanceChanged = get_self<ControlCore>(_core)->SetHudMode(enabled, passive, activeOpacity);
+        if (!modeChanged && !appearanceChanged)
+        {
+            return;
+        }
         // Rebuild the brush when entering HUD mode from an acrylic profile.
         // Do this before ApplyAppearance raises TransparencyChanged.
         if (_initializedTerminal)

@@ -75,7 +75,12 @@ private:
     wil::unique_hwnd _window;
     winrt::TerminalApp::App _app{ nullptr };
     std::vector<std::shared_ptr<::AppHost>> _windows;
-    std::vector<winrt::Microsoft::Terminal::Settings::Model::GlobalSummonArgs> _hotkeys;
+    struct GlobalHotkey
+    {
+        winrt::Microsoft::Terminal::Settings::Model::ShortcutAction Action;
+        winrt::Microsoft::Terminal::Settings::Model::GlobalSummonArgs SummonArgs{ nullptr };
+    };
+    std::vector<GlobalHotkey> _hotkeys;
     NOTIFYICONDATA _notificationIcon{};
     UINT WM_TASKBARCREATED = 0;
     HMENU _currentWindowMenu = nullptr;

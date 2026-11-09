@@ -10,6 +10,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $runtime = (Get-Item -LiteralPath $RuntimeDirectory).FullName
+$DestinationDirectory = [System.IO.Path]::GetFullPath($DestinationDirectory)
+$runtimePrefix = $runtime.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+if ($DestinationDirectory.Equals($runtime, [System.StringComparison]::OrdinalIgnoreCase) -or
+    $DestinationDirectory.StartsWith($runtimePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'DestinationDirectory must be outside RuntimeDirectory to prevent recursive copying.'
+}
 foreach ($file in @('WindowsTerminal.exe', 'resources.pri')) {
     if (-not (Test-Path -LiteralPath (Join-Path $runtime $file))) {
         throw "RuntimeDirectory must contain a prepared unpackaged build ($file is missing)."

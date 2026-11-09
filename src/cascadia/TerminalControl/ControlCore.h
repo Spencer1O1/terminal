@@ -272,7 +272,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         std::optional<float> _hudOpacity;
 
     public:
-        void SetHudMode(bool enabled, bool passive, float activeOpacity);
+        bool SetHudMode(bool enabled, bool passive, float activeOpacity);
         float Opacity() const { return _hudOpacity.value_or(_runtimeOpacity.value_or(_settings.Opacity())); }
         bool UseAcrylic() const { return !_hudOpacity && _runtimeUseAcrylic.value_or(_settings.UseAcrylic()); }
         RUNTIME_SETTING(float, FocusedOpacity, FocusedAppearance().Opacity());

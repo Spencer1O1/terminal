@@ -233,14 +233,6 @@ AppHost* WindowEmperor::GetWindowById(uint64_t id) const noexcept
 AppHost* WindowEmperor::GetWindowByName(std::wstring_view name) const noexcept
 {
     _assertIsMainThread();
-    if (name == L"_hud")
-    {
-        if (const auto hud = GetHudWindow())
-        {
-            return hud;
-        }
-    }
-
     for (const auto& window : _windows)
     {
         if (window->Logic().WindowProperties().WindowName() == name)
@@ -680,10 +672,6 @@ void WindowEmperor::_dispatchCommandline(winrt::TerminalApp::CommandlineArgs arg
 
     if (window)
     {
-        if (windowName == L"_hud" && !window->Logic().IsHudWindow())
-        {
-            window->Logic().HudModeEnabled(true);
-        }
         window->DispatchCommandline(std::move(args));
     }
     else
@@ -769,11 +757,6 @@ bool WindowEmperor::_summonWindow(const SummonWindowSelectionArgs& args) const
     else if (!args.WindowName.empty())
     {
         window = GetWindowByName(args.WindowName);
-        if (window && args.WindowName == L"_hud" && !window->Logic().IsHudWindow())
-        {
-            window->Logic().HudModeEnabled(true);
-            return true; // Re-entering the named HUD starts Active.
-        }
     }
     else
     {
@@ -1338,12 +1321,26 @@ void WindowEmperor::_notificationAreaMenuClicked(const WPARAM wParam, const LPAR
 
 void WindowEmperor::_hotkeyPressed(const long hotkeyIndex)
 {
-    if (hotkeyIndex < 0 || static_cast<size_t>(hotkeyIndex) > _hotkeys.size())
+    if (hotkeyIndex < 0 || static_cast<size_t>(hotkeyIndex) >= _hotkeys.size())
     {
         return;
     }
 
-    const auto& summonArgs = til::at(_hotkeys, hotkeyIndex);
+    // Native window calls can pump messages and reload the hotkey collection.
+    const auto hotkey = til::at(_hotkeys, hotkeyIndex);
+    if (hotkey.Action == Settings::Model::ShortcutAction::HudMode || hotkey.Action == Settings::Model::ShortcutAction::HudVisibility)
+    {
+        if (const auto hud = GetHudWindow())
+        {
+            winrt::TerminalApp::SummonWindowBehavior behavior;
+            behavior.ToggleHudInteraction(hotkey.Action == Settings::Model::ShortcutAction::HudMode);
+            behavior.ToggleVisibility(hotkey.Action == Settings::Model::ShortcutAction::HudVisibility);
+            behavior.ToMonitor(winrt::TerminalApp::MonitorBehavior::InPlace);
+            hud->HandleSummon(behavior);
+        }
+        return;
+    }
+    const auto& summonArgs = hotkey.SummonArgs;
 
     // desktop:any - MoveToCurrentDesktop=false, OnCurrentDesktop=false
     // desktop:toCurrent - MoveToCurrentDesktop=true, OnCurrentDesktop=false
@@ -1353,7 +1350,6 @@ void WindowEmperor::_hotkeyPressed(const long hotkeyIndex)
     args.OnCurrentDesktop = summonArgs.Desktop() == DesktopBehavior::OnCurrent;
     args.SummonBehavior.MoveToCurrentDesktop(summonArgs.Desktop() == DesktopBehavior::ToCurrent);
     args.SummonBehavior.ToggleVisibility(summonArgs.ToggleVisibility());
-    args.SummonBehavior.ToggleHudInteraction(summonArgs.Name() == L"_hud" && !summonArgs.ToggleVisibility());
     args.SummonBehavior.DropdownDuration(summonArgs.DropdownDuration());
 
     switch (summonArgs.Monitor())
@@ -1430,11 +1426,14 @@ void WindowEmperor::_setupGlobalHotkeys()
     // Re-register all current hotkeys.
     for (const auto& [keyChord, cmd] : _app.Logic().GlobalHotkeys())
     {
-        if (auto summonArgs = cmd.ActionAndArgs().Args().try_as<Settings::Model::GlobalSummonArgs>())
+        const auto action = cmd.ActionAndArgs();
+        const auto kind = action.Action();
+        auto summonArgs = action.Args().try_as<Settings::Model::GlobalSummonArgs>();
+        if (summonArgs || kind == Settings::Model::ShortcutAction::HudMode || kind == Settings::Model::ShortcutAction::HudVisibility)
         {
             const auto index = gsl::narrow_cast<int>(_hotkeys.size());
             _registerHotKey(index, keyChord);
-            _hotkeys.emplace_back(summonArgs);
+            _hotkeys.push_back({ kind, std::move(summonArgs) });
         }
     }
 }

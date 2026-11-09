@@ -215,8 +215,13 @@ namespace ControlUnitTests
         const auto core = createCore(*settings, *connection);
         core->AdjustOpacity(0.1f);
         const auto normalOpacity = core->Opacity();
-
-        core->SetHudMode(true, false, 0.35f);
+        VERIFY_IS_FALSE(core->SetHudMode(false, false, 0.35f));
+        VERIFY_ARE_EQUAL(normalOpacity, core->Opacity());
+        VERIFY_IS_TRUE(core->SetHudMode(true, false, 0.35f));
+        VERIFY_IS_FALSE(core->SetHudMode(true, false, 0.35f));
+        // Normal opacity shortcuts must not modify the appearance hidden by HUD.
+        core->AdjustOpacity(0.2f);
+        core->AdjustOpacity(0.1f, false);
         VERIFY_ARE_EQUAL(0.35f, core->Opacity());
         core->SetHudMode(true, false, 0.65f);
         VERIFY_ARE_EQUAL(0.65f, core->Opacity());
@@ -226,6 +231,7 @@ namespace ControlUnitTests
         VERIFY_ARE_EQUAL(0.0f, core->Opacity());
         VERIFY_IS_FALSE(core->UseAcrylic());
         core->SetHudMode(true, true, 0.65f);
+        core->AdjustOpacity(0.3f, false);
         VERIFY_ARE_EQUAL(0.0f, core->Opacity());
         VERIFY_IS_FALSE(core->UseAcrylic());
         VERIFY_ARE_EQUAL(0.6f, settings->Opacity());

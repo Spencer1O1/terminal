@@ -2609,6 +2609,10 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_activePaneChanged(winrt::TerminalApp::Tab sender,
                                           Windows::Foundation::IInspectable /*args*/)
     {
+        if (_hudEnabled && sender == _GetFocusedTab() && !_IsTerminalTab(sender))
+        {
+            ToggleHudModeRequested.raise(*this, nullptr);
+        }
         if (const auto tab{ _GetTabImpl(sender) })
         {
             // Possibly update the icon of the tab.
@@ -4088,6 +4092,40 @@ namespace winrt::TerminalApp::implementation
         _DismissTabContextMenus();
     }
 
+    bool TerminalPage::_IsTerminalTab(const TerminalApp::Tab& tab)
+    {
+        if (!tab)
+        {
+            return false;
+        }
+        const auto impl = _GetTabImpl(tab);
+        if (!impl)
+        {
+            return false;
+        }
+        const auto rootPane = impl->GetRootPane();
+        if (!rootPane)
+        {
+            return false;
+        }
+        bool terminal = false;
+        bool otherContent = false;
+        rootPane->WalkTree([&](auto&& pane) {
+            if (pane->GetContent())
+            {
+                const auto control = pane->GetTerminalControl();
+                terminal |= static_cast<bool>(control);
+                otherContent |= !control;
+            }
+        });
+        return terminal && !otherContent;
+    }
+
+    bool TerminalPage::CanEnterHudMode() const
+    {
+        return _IsTerminalTab(_GetFocusedTab());
+    }
+
     // Apply HUD appearance to existing panes and retain it for new panes.
     void TerminalPage::SetHudMode(const bool enabled, const bool passive)
     {
@@ -4195,7 +4233,7 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::SetFocusMode(const bool inFocusMode)
     {
-        const auto newInFocusMode = inFocusMode;
+        const auto newInFocusMode = _hudEnabled || inFocusMode;
         if (newInFocusMode != FocusMode())
         {
             _isInFocusMode = newInFocusMode;
@@ -4416,6 +4454,7 @@ namespace winrt::TerminalApp::implementation
     // - Updates the visibility of the tab row when in fullscreen state.
     void TerminalPage::SetShowTabsFullscreen(bool newShowTabsFullscreen)
     {
+        newShowTabsFullscreen = !_hudEnabled && newShowTabsFullscreen;
         if (_showTabsFullscreen == newShowTabsFullscreen)
         {
             return;
@@ -4433,6 +4472,7 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::SetFullscreen(bool newFullscreen)
     {
+        newFullscreen = _hudEnabled || newFullscreen;
         if (_isFullscreen == newFullscreen)
         {
             return;

@@ -1842,7 +1842,7 @@
       ]
     },
     "HudModeAction": {
-      "description": "Toggle Active/Passive interaction for the fullscreen _hud window. Creates it Active if absent.",
+      "description": "Toggle Active/Passive interaction for the existing HUD window. Does nothing when HUD mode is disabled.",
       "allOf": [
         { "$ref": "#/$defs/ShortcutAction" },
         {
@@ -1852,7 +1852,7 @@
       ]
     },
     "HudVisibilityAction": {
-      "description": "Hide the _hud window or restore its remembered Active/Passive state. Creates it Active if absent.",
+      "description": "Hide the existing HUD window or restore its remembered Active/Passive state. Does nothing when HUD mode is disabled.",
       "allOf": [
         { "$ref": "#/$defs/ShortcutAction" },
         {

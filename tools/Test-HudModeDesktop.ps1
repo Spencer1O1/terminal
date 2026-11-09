@@ -9,6 +9,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $runtime = (Get-Item -LiteralPath $RuntimeDirectory).FullName
+$ArtifactDirectory = [System.IO.Path]::GetFullPath($ArtifactDirectory)
+$runtimePrefix = $runtime.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+if ($ArtifactDirectory.Equals($runtime, [System.StringComparison]::OrdinalIgnoreCase) -or
+    $ArtifactDirectory.StartsWith($runtimePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'ArtifactDirectory must be outside RuntimeDirectory to prevent recursive copying.'
+}
 if (-not (Test-Path -LiteralPath (Join-Path $runtime 'WindowsTerminal.exe'))) {
     throw 'RuntimeDirectory must contain the built fork and its prepared runtime dependencies.'
 }

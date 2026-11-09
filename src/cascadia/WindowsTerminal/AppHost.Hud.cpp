@@ -126,6 +126,7 @@ void AppHost::_ApplyHudState(const Microsoft::Terminal::Hud::Action action)
 void AppHost::_IsHudWindowChanged(const winrt::Windows::Foundation::IInspectable&,
                                   const winrt::Windows::Foundation::IInspectable&)
 {
+    ++_hudModeGeneration;
     const auto enabled = _windowLogic.IsHudWindow();
     {
         const auto previousChanging = std::exchange(_changingHudState, true);

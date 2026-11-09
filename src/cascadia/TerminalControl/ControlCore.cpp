@@ -754,16 +754,22 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         }
     }
 
-    void ControlCore::SetHudMode(const bool enabled, const bool passive, const float activeOpacity)
+    bool ControlCore::SetHudMode(const bool enabled, const bool passive, const float activeOpacity)
     {
         // Override only background opacity; glyphs retain their own alpha.
         // Never write this into the saved settings or normal runtime opacity.
-        _hudOpacity = enabled ? std::optional<float>{ passive ? 0.0f : std::clamp(activeOpacity, 0.0f, 1.0f) } : std::nullopt;
+        const auto opacity = enabled ? std::optional<float>{ passive ? 0.0f : std::clamp(activeOpacity, 0.0f, 1.0f) } : std::nullopt;
+        if (_hudOpacity == opacity)
+        {
+            return false;
+        }
+        _hudOpacity = opacity;
+        return true;
     }
 
     void ControlCore::AdjustOpacity(const float adjustment)
     {
-        if (adjustment == 0)
+        if (_hudOpacity || adjustment == 0)
         {
             return;
         }
@@ -2479,6 +2485,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
     void ControlCore::AdjustOpacity(const float opacityAdjust, const bool relative)
     {
+        if (_hudOpacity)
+        {
+            return;
+        }
         if (relative)
         {
             AdjustOpacity(opacityAdjust);

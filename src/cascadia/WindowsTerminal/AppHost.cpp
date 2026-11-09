@@ -884,11 +884,20 @@ safe_void_coroutine AppHost::HandleSummon(const winrt::TerminalApp::SummonWindow
     if (_windowLogic.IsHudWindow())
     {
         // HUD appearance touches XAML. Serialize on the window dispatcher.
+        const auto generation = _hudModeGeneration;
         co_await wil::resume_foreground(_windowLogic.GetRoot().Dispatcher());
-        if (!_window || !_windowLogic || _isWindowInitialized != WindowInitializedState::Initialized)
+        // Mode may have changed while this request waited on the dispatcher.
+        // Do not apply stale HUD effects or hide an ordinary window.
+        if (!_window || !_windowLogic || !_windowLogic.IsHudWindow() ||
+            generation != _hudModeGeneration ||
+            _isWindowInitialized != WindowInitializedState::Initialized)
         {
             co_return;
         }
+    }
+
+    if (_windowLogic.IsHudWindow())
+    {
         using Microsoft::Terminal::Hud::Action;
         const auto action = args && args.ToggleHudInteraction() ? Action::ToggleInteraction :
                             args && args.ToggleVisibility()     ? Action::ToggleVisibility :

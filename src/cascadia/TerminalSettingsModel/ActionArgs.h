@@ -946,25 +946,6 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
     {
         ACTION_ARG_BODY(GlobalSummonArgs, GLOBAL_SUMMON_ARGS)
     public:
-        // HUD aliases share the summon transport, with no monitor movement or animation.
-        static FromJsonResult HudModeFromJson(const Json::Value& /*json*/)
-        {
-            auto args = winrt::make_self<GlobalSummonArgs>();
-            args->_Name = L"_hud";
-            args->_ToggleVisibility = false;
-            args->_DropdownDuration = 0;
-            args->_Monitor = Model::MonitorBehavior::Any;
-            return { *args, {} };
-        }
-
-        static FromJsonResult HudVisibilityFromJson(const Json::Value& json)
-        {
-            auto [args, warnings] = HudModeFromJson(json);
-            // Projected action arguments are read-only; initialize the implementation.
-            winrt::get_self<GlobalSummonArgs>(args.as<Model::GlobalSummonArgs>())->_ToggleVisibility = true;
-            return { args, std::move(warnings) };
-        }
-
         // SPECIAL! This deserializer creates a GlobalSummonArgs with the
         // default values for quakeMode
         static FromJsonResult QuakeModeFromJson(const Json::Value& /*json*/)

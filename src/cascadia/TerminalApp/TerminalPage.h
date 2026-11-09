@@ -111,6 +111,7 @@ namespace winrt::TerminalApp::implementation
         void TitlebarClicked();
         void WindowVisibilityChanged(const bool showOrHide);
         void SetHudMode(bool enabled, bool passive);
+        bool CanEnterHudMode() const;
 
         float CalcSnappedDimension(const bool widthOrHeight, const float dimension) const;
 
@@ -231,6 +232,7 @@ namespace winrt::TerminalApp::implementation
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _tabs;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _mruTabs;
         static winrt::com_ptr<Tab> _GetTabImpl(const TerminalApp::Tab& tab);
+        static bool _IsTerminalTab(const TerminalApp::Tab& tab);
 
         void _UpdateTabIndices();
 

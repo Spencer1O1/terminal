@@ -151,8 +151,6 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         // - QuakeMode: deserializes into a GlobalSummon, so we don't need a serializer
         // - Invalid: has no args
         ActionToSerializersPair{ ShortcutAction::QuakeMode, { &GlobalSummonArgs::QuakeModeFromJson, nullptr } },
-        ActionToSerializersPair{ ShortcutAction::HudMode, { &GlobalSummonArgs::HudModeFromJson, nullptr } },
-        ActionToSerializersPair{ ShortcutAction::HudVisibility, { &GlobalSummonArgs::HudVisibilityFromJson, nullptr } },
         ActionToSerializersPair{ ShortcutAction::Invalid, { nullptr, nullptr } },
 
 #define ON_ALL_ACTIONS_WITH_ARGS(action) ACTION_TO_SERIALIZERS_PAIR(action)

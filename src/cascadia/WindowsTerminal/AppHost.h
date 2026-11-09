@@ -52,6 +52,7 @@ private:
     Microsoft::Terminal::Hud::StateMachine _hudState;
     Microsoft::Terminal::Hud::InputMode _hudInput;
     bool _changingHudState{ false };
+    uint64_t _hudModeGeneration{};
     HWND _hudReturnFocus{};
     DWORD _hudReturnFocusProcess{};
     DWORD _hudReturnFocusThread{};

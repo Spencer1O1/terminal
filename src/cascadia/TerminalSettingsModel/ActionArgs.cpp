@@ -817,10 +817,6 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
 
     winrt::hstring GlobalSummonArgs::GenerateName(const winrt::WARC::ResourceContext& context) const
     {
-        if (Name() == L"_hud")
-        {
-            return ToggleVisibility() ? RS_switchable_(L"HudVisibilityCommandKey") : RS_switchable_(L"HudModeCommandKey");
-        }
         // GH#10210 - Is this action literally the same thing as the `quakeMode`
         // action? That has a special name.
         static const auto quakeModeArgs{ std::get<0>(GlobalSummonArgs::QuakeModeFromJson(Json::Value::null)) };
