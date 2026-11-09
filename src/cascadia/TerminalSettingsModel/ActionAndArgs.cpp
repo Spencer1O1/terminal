@@ -78,6 +78,9 @@ static constexpr std::string_view DisplayWorkingDirectoryKey{ "debugTerminalCwd"
 static constexpr std::string_view SearchForTextKey{ "searchWeb" };
 static constexpr std::string_view GlobalSummonKey{ "globalSummon" };
 static constexpr std::string_view QuakeModeKey{ "quakeMode" };
+static constexpr std::string_view HudModeKey{ "hudMode" };
+static constexpr std::string_view HudVisibilityKey{ "hudVisibility" };
+static constexpr std::string_view ToggleHudModeKey{ "toggleHudMode" };
 static constexpr std::string_view FocusPaneKey{ "focusPane" };
 static constexpr std::string_view OpenSystemMenuKey{ "openSystemMenu" };
 static constexpr std::string_view ExportBufferKey{ "exportBuffer" };
@@ -148,6 +151,8 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
         // - QuakeMode: deserializes into a GlobalSummon, so we don't need a serializer
         // - Invalid: has no args
         ActionToSerializersPair{ ShortcutAction::QuakeMode, { &GlobalSummonArgs::QuakeModeFromJson, nullptr } },
+        ActionToSerializersPair{ ShortcutAction::HudMode, { &GlobalSummonArgs::HudModeFromJson, nullptr } },
+        ActionToSerializersPair{ ShortcutAction::HudVisibility, { &GlobalSummonArgs::HudVisibilityFromJson, nullptr } },
         ActionToSerializersPair{ ShortcutAction::Invalid, { nullptr, nullptr } },
 
 #define ON_ALL_ACTIONS_WITH_ARGS(action) ACTION_TO_SERIALIZERS_PAIR(action)

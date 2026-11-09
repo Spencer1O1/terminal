@@ -1019,7 +1019,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     // - <none>
     void TermControl::_SetBackgroundImage(const IControlAppearance& newAppearance)
     {
-        if (newAppearance.BackgroundImage().empty() || _core.Settings().UseBackgroundImageForWindow())
+        if (_hudEnabled || newAppearance.BackgroundImage().empty() || _core.Settings().UseBackgroundImageForWindow())
         {
             BackgroundImage().Source(nullptr);
             return;
@@ -1078,7 +1078,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         auto settings{ _core.Settings() };
         auto bgColor = til::color{ _core.FocusedAppearance().DefaultBackground() };
 
-        auto transparentBg = settings.UseBackgroundImageForWindow();
+        auto transparentBg = !_hudEnabled && settings.UseBackgroundImageForWindow();
         if (transparentBg)
         {
             bgColor = Windows::UI::Colors::Transparent();
@@ -1156,7 +1156,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     // - bg: the new color to use as the background color.
     void TermControl::_changeBackgroundColor(til::color bg)
     {
-        auto transparent_bg = _core.Settings().UseBackgroundImageForWindow();
+        auto transparent_bg = !_hudEnabled && _core.Settings().UseBackgroundImageForWindow();
         if (transparent_bg)
         {
             bg = Windows::UI::Colors::Transparent();
@@ -3755,6 +3755,23 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     void TermControl::UpdateWinGetSuggestions(Windows::Foundation::Collections::IVector<hstring> suggestions)
     {
         get_self<ControlCore>(_core)->UpdateQuickFixes(suggestions);
+    }
+
+    void TermControl::SetHudMode(const bool enabled, const bool passive, const float activeOpacity)
+    {
+        if (_IsClosing())
+        {
+            return;
+        }
+        _hudEnabled = enabled;
+        get_self<ControlCore>(_core)->SetHudMode(enabled, passive, activeOpacity);
+        // Rebuild the brush when entering HUD mode from an acrylic profile.
+        // Do this before ApplyAppearance raises TransparencyChanged.
+        if (_initializedTerminal)
+        {
+            _InitializeBackgroundBrush();
+            _UpdateAppearanceFromUIThread(_focused ? _core.FocusedAppearance() : _core.UnfocusedAppearance());
+        }
     }
 
     void TermControl::AdjustOpacity(const float opacity, const bool relative)

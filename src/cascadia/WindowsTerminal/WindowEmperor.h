@@ -28,11 +28,13 @@ public:
         WM_MESSAGE_BOX_CLOSED,
         WM_IDENTIFY_ALL_WINDOWS,
         WM_NOTIFY_FROM_NOTIFICATION_AREA,
+        WM_UPDATE_NOTIFICATION_ICON,
     };
 
     HWND GetMainWindow() const noexcept;
     AppHost* GetWindowById(uint64_t id) const noexcept;
     AppHost* GetWindowByName(std::wstring_view name) const noexcept;
+    AppHost* GetHudWindow() const noexcept;
     // CreateNewWindow is used for creating a new window from existing Content
     void CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs args);
     void HandleCommandlineArgs(int nCmdShow);
@@ -48,7 +50,7 @@ private:
 
     [[nodiscard]] static LRESULT __stdcall _wndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) noexcept;
 
-    AppHost* _mostRecentWindow() const noexcept;
+    AppHost* _mostRecentWindow(bool includeHud = true) const noexcept;
     bool _summonWindow(const SummonWindowSelectionArgs& args) const;
     void _summonAllWindows() const;
     void _dispatchSpecialKey(const MSG& msg) const;

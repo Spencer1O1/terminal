@@ -40,7 +40,39 @@ namespace SettingsModelUnitTests
         TEST_METHOD(TestMoveTabArgs);
         TEST_METHOD(TestGetKeyBindingForAction);
         TEST_METHOD(KeybindingsWithoutVkey);
+        TEST_METHOD(HudGlobalHotkeys);
     };
+
+    void KeyBindingsTests::HudGlobalHotkeys()
+    {
+        const auto json = VerifyParseSucceeded(R"json([
+            { "command": "hudMode", "keys": "win+sc(41)" },
+            { "command": "hudVisibility", "keys": "win+shift+sc(41)" },
+            { "command": "toggleHudMode", "keys": "win+ctrl+sc(41)" }
+        ])json");
+        const auto map = winrt::make_self<implementation::ActionMap>();
+        const auto warnings = map->LayerJson(json, OriginTag::User);
+        VERIFY_ARE_EQUAL(0u, warnings.size());
+        const auto hotkeys = map->GlobalHotkeys();
+        VERIFY_ARE_EQUAL(2u, hotkeys.Size());
+        VERIFY_ARE_EQUAL(3u, map->KeyBindings().Size());
+        const auto modeKey = KeyChord{ winrt::Windows::System::VirtualKeyModifiers::Windows | winrt::Windows::System::VirtualKeyModifiers::Control, 0, 41 };
+        VERIFY_ARE_EQUAL(ShortcutAction::ToggleHudMode, map->GetActionByKeyChord(modeKey).ActionAndArgs().Action());
+        for (const auto& entry : hotkeys)
+        {
+            const auto action = entry.Value().ActionAndArgs();
+            const auto args = action.Args().as<GlobalSummonArgs>();
+            VERIFY_ARE_EQUAL(L"_hud", args.Name());
+            VERIFY_ARE_EQUAL(0u, args.DropdownDuration());
+            VERIFY_ARE_EQUAL(MonitorBehavior::Any, args.Monitor());
+            VERIFY_ARE_EQUAL(action.Action() == ShortcutAction::HudVisibility, args.ToggleVisibility());
+            const auto serialized = implementation::ActionAndArgs::ToJson(action);
+            std::vector<SettingsLoadWarnings> parseWarnings;
+            const auto roundTrip = implementation::ActionAndArgs::FromJson(serialized, parseWarnings);
+            VERIFY_ARE_EQUAL(action.Action(), roundTrip->Action());
+            VERIFY_IS_TRUE(args.Equals(roundTrip->Args()));
+        }
+    }
 
     void KeyBindingsTests::KeyChords()
     {

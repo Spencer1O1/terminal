@@ -187,6 +187,10 @@ void GlobalAppSettings::LayerJson(const Json::Value& json, const OriginTag origi
     {
         this->InitialRows(std::clamp(this->InitialRows(), MINIMUM_VISIBLE_CELLS, 999));
     }
+    if (HasHudActiveOpacity())
+    {
+        HudActiveOpacity(std::clamp(HudActiveOpacity(), 0.0, 100.0));
+    }
     LayerActionsFrom(json, origin, true);
 
     // No need to update _fixupsAppliedDuringLoad here.

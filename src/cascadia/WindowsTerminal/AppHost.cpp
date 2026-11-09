@@ -49,6 +49,9 @@ AppHost::AppHost(WindowEmperor* manager, const winrt::TerminalApp::AppLogic& log
     _windowManager{ manager }
 {
     _HandleCommandlineArgs(args);
+    // Remember the launching foreground even for ordinary windows: the user
+    // may convert this window to HUD after Windows has already activated it.
+    _RememberHudForeground();
 
     // _HandleCommandlineArgs will create a _windowLogic
     _useNonClientArea = _windowLogic.GetShowTabsInTitlebar();
@@ -201,9 +204,9 @@ void AppHost::Initialize()
     // always called on the window thread - for reheated windows, it could be
     // called on a random COM thread.
 
-    _window->SetAlwaysOnTop(_windowLogic.GetInitialAlwaysOnTop());
-    _window->SetAutoHideWindow(_windowLogic.AutoHideWindow());
-    _window->SetShowTabsFullscreen(_windowLogic.GetInitialShowTabsFullscreen());
+    _window->SetAlwaysOnTop(_windowLogic.IsHudWindow() || _windowLogic.GetInitialAlwaysOnTop());
+    _window->SetAutoHideWindow(!_windowLogic.IsHudWindow() && _windowLogic.AutoHideWindow());
+    _window->SetShowTabsFullscreen(!_windowLogic.IsHudWindow() && _windowLogic.GetInitialShowTabsFullscreen());
 
     // MORE EVENT HANDLERS HERE!
     // MAKE SURE THEY ARE ALL:
@@ -269,7 +272,9 @@ void AppHost::Initialize()
     _revokers.SettingsChanged = _windowLogic.SettingsChanged(winrt::auto_revoke, { this, &AppHost::_HandleSettingsChanged });
 
     _revokers.IsQuakeWindowChanged = _windowLogic.IsQuakeWindowChanged(winrt::auto_revoke, { this, &AppHost::_IsQuakeWindowChanged });
+    _revokers.IsHudWindowChanged = _windowLogic.IsHudWindowChanged(winrt::auto_revoke, { this, &AppHost::_IsHudWindowChanged });
     _revokers.SummonWindowRequested = _windowLogic.SummonWindowRequested(winrt::auto_revoke, { this, &AppHost::_SummonWindowRequested });
+    _revokers.ToggleHudModeRequested = _windowLogic.ToggleHudModeRequested(winrt::auto_revoke, { this, &AppHost::_ToggleHudModeRequested });
     _revokers.OpenSystemMenu = _windowLogic.OpenSystemMenu(winrt::auto_revoke, { this, &AppHost::_OpenSystemMenu });
     _revokers.QuitRequested = _windowLogic.QuitRequested(winrt::auto_revoke, { this, &AppHost::_RequestQuitAll });
     _revokers.ShowWindowChanged = _windowLogic.ShowWindowChanged(winrt::auto_revoke, { this, &AppHost::_ShowWindowChanged });
@@ -301,15 +306,41 @@ void AppHost::Initialize()
             .trailing = true,
         },
         [this](const bool show) {
-            _window->ShowWindowChanged(show);
+            if (_windowLogic.IsHudWindow())
+            {
+                using namespace Microsoft::Terminal::Hud;
+                if (show)
+                {
+                    _ApplyHudState(Action::Activate);
+                }
+                else if (_hudState.Current() != State::Hidden)
+                {
+                    _ApplyHudState(Action::ToggleVisibility);
+                }
+            }
+            else
+            {
+                _window->ShowWindowChanged(show);
+            }
         });
 
     _window->UpdateTitle(_windowLogic.Title());
 
     // Set up the content of the application. If the app has a custom titlebar,
     // set that content as well.
+    if (_windowLogic.IsHudWindow())
+    {
+        _CaptureHudPlacement();
+        // A fresh HUD's ordinary presentation must be visible when it leaves HUD mode.
+        if (_hudNormalPlacement)
+        {
+            _hudNormalPlacement->showCmd = SW_SHOWNORMAL;
+        }
+    }
     _window->SetContent(_windowLogic.GetRoot());
     _window->OnAppInitialized();
+    // HUD presentation is applied by _WindowInitializedHandler after XAML's
+    // first layout has created the initial terminal control and connection.
 }
 
 void AppHost::Close()
@@ -322,6 +353,8 @@ void AppHost::Close()
 
     _revokeWindowCallbacks();
 
+    // InputMode never outlives its native HWND, including allocator handle reuse.
+    LOG_HR_IF(E_FAIL, !_hudInput.SetPassive(_window->GetHandle(), false));
     _window->Close();
 
     if (_windowLogic)
@@ -737,7 +770,7 @@ void AppHost::_AlwaysOnTopChanged(const winrt::Windows::Foundation::IInspectable
         return;
     }
 
-    _window->SetAlwaysOnTop(_windowLogic.AlwaysOnTop());
+    _window->SetAlwaysOnTop(_windowLogic.IsHudWindow() || _windowLogic.AlwaysOnTop());
 }
 
 // Method Description
@@ -828,6 +861,14 @@ void AppHost::DispatchCommandline(winrt::TerminalApp::CommandlineArgs args)
 
 void AppHost::_WindowActivated(bool activated)
 {
+    if (_windowLogic.IsHudWindow() && !_changingHudState &&
+        _isWindowInitialized == WindowInitializedState::Initialized)
+    {
+        // Losing foreground always releases input. Do not restore foreground
+        // here: another app or an OS dialog may have deliberately taken it.
+        _ApplyHudState(activated ? Microsoft::Terminal::Hud::Action::Activate : Microsoft::Terminal::Hud::Action::Deactivate);
+    }
+
     _windowLogic.WindowActivated(activated);
 
     if (activated)
@@ -837,9 +878,27 @@ void AppHost::_WindowActivated(bool activated)
     }
 }
 
-safe_void_coroutine AppHost::HandleSummon(const winrt::TerminalApp::SummonWindowBehavior args) const
+safe_void_coroutine AppHost::HandleSummon(const winrt::TerminalApp::SummonWindowBehavior args)
 {
-    _window->SummonWindow(args);
+    const auto lifetime = shared_from_this();
+    if (_windowLogic.IsHudWindow())
+    {
+        // HUD appearance touches XAML. Serialize on the window dispatcher.
+        co_await wil::resume_foreground(_windowLogic.GetRoot().Dispatcher());
+        if (!_window || !_windowLogic || _isWindowInitialized != WindowInitializedState::Initialized)
+        {
+            co_return;
+        }
+        using Microsoft::Terminal::Hud::Action;
+        const auto action = args && args.ToggleHudInteraction() ? Action::ToggleInteraction :
+                            args && args.ToggleVisibility()     ? Action::ToggleVisibility :
+                                                                  Action::Activate;
+        _ApplyHudState(action);
+    }
+    else
+    {
+        _window->SummonWindow(args);
+    }
 
     if (!args || !args.MoveToCurrentDesktop())
     {
@@ -959,7 +1018,7 @@ void AppHost::_updateTheme()
     const auto colorOpacity = b ? color.A / 255.0 : 0.0;
     const auto brushOpacity = _opacityFromBrush(b);
     const auto opacity = std::min(colorOpacity, brushOpacity);
-    _window->UseMica(windowTheme ? windowTheme.UseMica() : false, opacity);
+    _window->UseMica(!_windowLogic.IsHudWindow() && windowTheme && windowTheme.UseMica(), opacity);
 
     // This is a hack to make the window borders dark instead of light.
     // It must be done before WM_NCPAINT so that the borders are rendered with
@@ -1037,8 +1096,8 @@ void AppHost::_HandleSettingsChanged(const winrt::Windows::Foundation::IInspecta
     // We don't need to call in to windowLogic here - it has its own SettingsChanged handler
 
     _window->SetMinimizeToNotificationAreaBehavior(_windowLogic.GetMinimizeToNotificationArea());
-    _window->SetAutoHideWindow(_windowLogic.AutoHideWindow());
-    _window->SetShowTabsFullscreen(_windowLogic.ShowTabsFullscreen());
+    _window->SetAutoHideWindow(!_windowLogic.IsHudWindow() && _windowLogic.AutoHideWindow());
+    _window->SetShowTabsFullscreen(!_windowLogic.IsHudWindow() && _windowLogic.ShowTabsFullscreen());
     _updateTheme();
 }
 
@@ -1208,6 +1267,11 @@ safe_void_coroutine AppHost::_WindowInitializedHandler(const winrt::Windows::Fou
         co_return;
     }
 
+    if (_windowLogic.IsHudWindow())
+    {
+        nCmdShow = SW_SHOW;
+        _windowLogic.SetHudMode(true, false);
+    }
     ShowWindow(_window->GetHandle(), nCmdShow);
 
     // If we didn't start the window hidden (in one way or another), then try to
@@ -1233,6 +1297,10 @@ safe_void_coroutine AppHost::_WindowInitializedHandler(const winrt::Windows::Fou
     // In AppHost::_WindowMoved, we'll make sure we're at least initialized
     // before dismissing open dialogs.
     _isWindowInitialized = WindowInitializedState::Initialized;
+    if (_windowLogic.IsHudWindow() && GetForegroundWindow() != _window->GetHandle())
+    {
+        _ApplyHudState(Microsoft::Terminal::Hud::Action::Deactivate);
+    }
 }
 
 winrt::TerminalApp::TerminalWindow AppHost::Logic()

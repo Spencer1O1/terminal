@@ -42,6 +42,17 @@
             </ComboBox>
         </local:SettingContainer>
 
+        <local:SettingContainer x:Name="HudActiveOpacity"
+                                x:Uid="Globals_HudActiveOpacity">
+            <muxc:NumberBox x:Uid="Globals_HudActiveOpacityNumberBox"
+                            Minimum="0"
+                            Maximum="100"
+                            SmallChange="5"
+                            SpinButtonPlacementMode="Compact"
+                            Style="{StaticResource NumberBoxSettingStyle}"
+                            Value="{x:Bind ViewModel.HudActiveOpacity, Mode=TwoWay}" />
+        </local:SettingContainer>
+
         <!--  Position of new tab  -->
         <local:SettingContainer x:Name="NewTabPosition"
                                 x:Uid="Globals_NewTabPosition">

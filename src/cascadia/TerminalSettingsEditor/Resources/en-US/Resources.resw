@@ -2753,4 +2753,13 @@
     <value>Type to filter icons</value>
     <comment>Placeholder text for a text box to filter and select an icon.</comment>
   </data>
+  <data name="Globals_HudActiveOpacity.Header" xml:space="preserve">
+    <value>HUD Active opacity (%)</value>
+  </data>
+  <data name="Globals_HudActiveOpacity.HelpText" xml:space="preserve">
+    <value>Background opacity while the HUD receives input: 0 is transparent, 100 is opaque. Passive HUD backgrounds stay transparent; text opacity is unchanged.</value>
+  </data>
+  <data name="Globals_HudActiveOpacityNumberBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>HUD Active opacity (%)</value>
+  </data>
 </root>

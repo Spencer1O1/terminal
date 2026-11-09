@@ -37,6 +37,7 @@ namespace SettingsModelUnitTests
         TEST_CLASS(SerializationTests);
 
         TEST_METHOD(GlobalSettings);
+        TEST_METHOD(HudActiveOpacity);
         TEST_METHOD(Profile);
         TEST_METHOD(ColorScheme);
         TEST_METHOD(Actions);
@@ -97,6 +98,27 @@ namespace SettingsModelUnitTests
             return json;
         }
     };
+
+    void SerializationTests::HudActiveOpacity()
+    {
+        const auto defaults = implementation::GlobalAppSettings::FromJson(VerifyParseSucceeded("{}"));
+        VERIFY_ARE_EQUAL(35.0, defaults->HudActiveOpacity());
+        VERIFY_IS_FALSE(defaults->ToJson().isMember("hudActiveOpacity"));
+        for (const auto value : { 0.0, 35.0, 62.5, 100.0, -10.0, 150.0 })
+        {
+            Json::Value json{ Json::objectValue };
+            json["hudActiveOpacity"] = value;
+            const auto settings = implementation::GlobalAppSettings::FromJson(json);
+            const auto expected = std::clamp(value, 0.0, 100.0);
+            VERIFY_ARE_EQUAL(expected, settings->HudActiveOpacity());
+            const auto saved = settings->ToJson();
+            VERIFY_ARE_EQUAL(expected, saved["hudActiveOpacity"].asDouble());
+            const auto copy = settings->Copy();
+            VERIFY_ARE_EQUAL(expected, copy->HudActiveOpacity());
+            const auto restored = implementation::GlobalAppSettings::FromJson(saved);
+            VERIFY_ARE_EQUAL(expected, restored->HudActiveOpacity());
+        }
+    }
 
     void SerializationTests::GlobalSettings()
     {

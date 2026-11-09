@@ -19,6 +19,7 @@ Author(s):
 // (type, name, jsonKey, defaultArgs)
 
 #define MTSM_GLOBAL_SETTINGS(X)                                                                                                                                                                       \
+    X(double, HudActiveOpacity, "hudActiveOpacity", 35.0)                                                                                                                                             \
     X(int32_t, InitialRows, "initialRows", 30)                                                                                                                                                        \
     X(int32_t, InitialCols, "initialCols", 80)                                                                                                                                                        \
     X(hstring, WordDelimiters, "wordDelimiters", DEFAULT_WORD_DELIMITERS)                                                                                                                             \

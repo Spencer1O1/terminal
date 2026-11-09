@@ -421,6 +421,9 @@
         "findMatch",
         "focusPane",
         "globalSummon",
+        "hudMode",
+        "hudVisibility",
+        "toggleHudMode",
         "identifyWindow",
         "identifyWindows",
         "markMode",
@@ -1838,6 +1841,26 @@
         }
       ]
     },
+    "HudModeAction": {
+      "description": "Toggle Active/Passive interaction for the fullscreen _hud window. Creates it Active if absent.",
+      "allOf": [
+        { "$ref": "#/$defs/ShortcutAction" },
+        {
+          "type": "object",
+          "properties": { "action": { "type": "string", "const": "hudMode" } }
+        }
+      ]
+    },
+    "HudVisibilityAction": {
+      "description": "Hide the _hud window or restore its remembered Active/Passive state. Creates it Active if absent.",
+      "allOf": [
+        { "$ref": "#/$defs/ShortcutAction" },
+        {
+          "type": "object",
+          "properties": { "action": { "type": "string", "const": "hudVisibility" } }
+        }
+      ]
+    },
     "QuakeModeAction": {
       "description": "This action is a special variation of the globalSummon action. It specifically summons a window called \"_quake\". If you would like to change the behavior of the quakeMode action, we recommended creating a new globalSummon entry.",
       "allOf": [
@@ -2222,6 +2245,12 @@
               "$ref": "#/$defs/QuakeModeAction"
             },
             {
+              "$ref": "#/$defs/HudModeAction"
+            },
+            {
+              "$ref": "#/$defs/HudVisibilityAction"
+            },
+            {
               "$ref": "#/$defs/AdjustOpacityAction"
             },
             {
@@ -2348,6 +2377,13 @@
       "description": "Properties that affect the entire window, regardless of the profile settings.",
       "type": "object",
       "properties": {
+        "hudActiveOpacity": {
+          "default": 35,
+          "description": "HUD Active background opacity as a percentage. Passive HUD backgrounds remain transparent; text opacity is unchanged.",
+          "minimum": 0,
+          "maximum": 100,
+          "type": "number"
+        },
         "alwaysOnTop": {
           "default": false,
           "description": "When set to true, the window is created on top of all other windows. If multiple windows are all \"always on top\", the most recently focused one will be the topmost",

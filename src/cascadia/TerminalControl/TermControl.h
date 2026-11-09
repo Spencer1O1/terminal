@@ -178,6 +178,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         void UpdateWinGetSuggestions(Windows::Foundation::Collections::IVector<hstring> suggestions);
 
         void AdjustOpacity(const float opacity, const bool relative);
+        void SetHudMode(bool enabled, bool passive, float activeOpacity);
 
         bool RawWriteKeyEvent(const WORD vkey, const WORD scanCode, const winrt::Microsoft::Terminal::Core::ControlKeyStates modifiers, const bool keyDown);
         bool RawWriteChar(const wchar_t character, const WORD scanCode, const winrt::Microsoft::Terminal::Core::ControlKeyStates modifiers);
@@ -283,6 +284,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         bool _closing{ false };
         bool _focused{ false };
+        bool _hudEnabled{ false };
         bool _initializedTerminal{ false };
         bool _quickFixButtonCollapsible{ false };
         bool _quickFixesAvailable{ false };

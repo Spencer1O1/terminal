@@ -231,22 +231,29 @@ namespace winrt::TerminalApp::implementation
         // launched _fullscreen_, toggle fullscreen mode. This will make sure
         // that the window size is _first_ set up as something sensible, so
         // leaving fullscreen returns to a reasonable size.
-        const auto launchMode = this->GetLaunchMode();
-        if (_WindowProperties->IsQuakeWindow() || WI_IsFlagSet(launchMode, LaunchMode::FocusMode))
+        if (IsHudWindow())
         {
-            _root->SetFocusMode(true);
+            _root->SetHudMode(true, false);
         }
-
-        // The IslandWindow handles (creating) the maximized state
-        // we just want to record it here on the page as well.
-        if (WI_IsFlagSet(launchMode, LaunchMode::MaximizedMode))
+        else
         {
-            _root->Maximized(true);
-        }
+            const auto launchMode = this->GetLaunchMode();
+            if (_WindowProperties->IsQuakeWindow() || WI_IsFlagSet(launchMode, LaunchMode::FocusMode))
+            {
+                _root->SetFocusMode(true);
+            }
 
-        if (WI_IsFlagSet(launchMode, LaunchMode::FullscreenMode) && !_WindowProperties->IsQuakeWindow())
-        {
-            _root->SetFullscreen(true);
+            // The IslandWindow handles (creating) the maximized state
+            // we just want to record it here on the page as well.
+            if (WI_IsFlagSet(launchMode, LaunchMode::MaximizedMode))
+            {
+                _root->Maximized(true);
+            }
+
+            if (WI_IsFlagSet(launchMode, LaunchMode::FullscreenMode) && !_WindowProperties->IsQuakeWindow())
+            {
+                _root->SetFullscreen(true);
+            }
         }
 
         AppLogic::Current()->NotifyRootInitialized();
@@ -636,6 +643,11 @@ namespace winrt::TerminalApp::implementation
     // - LaunchMode enum that indicates the launch mode
     LaunchMode TerminalWindow::GetLaunchMode()
     {
+        if (IsHudWindow())
+        {
+            return LaunchMode::FullscreenMode | LaunchMode::FocusMode;
+        }
+
         if (_contentBounds)
         {
             return LaunchMode::DefaultMode;
@@ -669,6 +681,11 @@ namespace winrt::TerminalApp::implementation
     // - a point containing the requested initial position in pixels.
     TerminalApp::InitialPosition TerminalWindow::GetInitialPosition(int64_t defaultInitialX, int64_t defaultInitialY)
     {
+        if (IsHudWindow())
+        {
+            return { 0, 0 }; // Windows places the primary monitor at the desktop origin.
+        }
+
         auto initialPosition{ _settings.GlobalSettings().InitialPosition() };
 
         if (const auto layout = LoadPersistedLayout())
@@ -715,7 +732,7 @@ namespace winrt::TerminalApp::implementation
             hadPersistedPosition = (bool)layout.InitialPosition();
         }
 
-        return !_contentBounds &&
+        return !IsHudWindow() && !_contentBounds &&
                !hadPersistedPosition &&
                _settings.GlobalSettings().CenterOnLaunch() &&
                (_appArgs && !_appArgs->ParsedArgs().GetPosition().has_value());
@@ -1161,12 +1178,32 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalWindow::HudModeEnabled(const bool enabled)
+    {
+        if (_isHudWindow != enabled)
+        {
+            _isHudWindow = enabled;
+            IsHudWindowChanged.raise(*this, nullptr);
+        }
+    }
+
+    void TerminalWindow::SetHudMode(const bool enabled, const bool passive)
+    {
+        if (_root)
+        {
+            _root->SetHudMode(enabled, passive);
+        }
+    }
+
     void TerminalWindow::WindowName(const winrt::hstring& name)
     {
         const auto oldIsQuakeMode = _WindowProperties->IsQuakeWindow();
         _WindowProperties->WindowName(name);
         if (!_root)
         {
+            // Named HUD creation is a launch policy. Runtime mode changes do
+            // not rename the window or change its per-window settings identity.
+            _isHudWindow = name == L"_hud";
             return;
         }
         const auto newIsQuakeMode = _WindowProperties->IsQuakeWindow();

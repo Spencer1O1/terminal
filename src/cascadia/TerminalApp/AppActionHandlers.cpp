@@ -1110,6 +1110,26 @@ namespace winrt::TerminalApp::implementation
         // if it wasn't bound at all.
         args.Handled(false);
     }
+    void TerminalPage::_HandleToggleHudMode(const IInspectable&, const ActionEventArgs& args)
+    {
+        // Quake retains its separate window mode and sizing constraints.
+        if (!WindowProperties().IsQuakeWindow())
+        {
+            ToggleHudModeRequested.raise(*this, nullptr);
+            args.Handled(true);
+        }
+    }
+
+    void TerminalPage::_HandleHudMode(const IInspectable& sender, const ActionEventArgs& args)
+    {
+        _HandleGlobalSummon(sender, args);
+    }
+
+    void TerminalPage::_HandleHudVisibility(const IInspectable& sender, const ActionEventArgs& args)
+    {
+        _HandleGlobalSummon(sender, args);
+    }
+
     void TerminalPage::_HandleQuakeMode(const IInspectable& /*sender*/,
                                         const ActionEventArgs& args)
     {

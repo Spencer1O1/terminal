@@ -141,6 +141,9 @@ namespace winrt::TerminalApp::implementation
         void WindowId(const uint64_t& value);
 
         bool IsQuakeWindow() const noexcept { return _WindowProperties->IsQuakeWindow(); }
+        bool IsHudWindow() const noexcept { return _isHudWindow; }
+        void HudModeEnabled(bool enabled);
+        void SetHudMode(bool enabled, bool passive);
         TerminalApp::WindowProperties WindowProperties() { return *_WindowProperties; }
 
         void AttachContent(winrt::hstring content, uint32_t tabIndex);
@@ -158,6 +161,7 @@ namespace winrt::TerminalApp::implementation
 
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::Microsoft::Terminal::Settings::Model::Theme> RequestedThemeChanged;
         til::typed_event<Windows::Foundation::IInspectable, Windows::Foundation::IInspectable> IsQuakeWindowChanged;
+        til::typed_event<Windows::Foundation::IInspectable, Windows::Foundation::IInspectable> IsHudWindowChanged;
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::TerminalApp::SystemMenuChangeArgs> SystemMenuChangeRequested;
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::TerminalApp::SettingsLoadEventArgs> SettingsChanged;
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::Microsoft::Terminal::Control::WindowSizeChangedEventArgs> WindowSizeChanged;
@@ -173,6 +177,7 @@ namespace winrt::TerminalApp::implementation
         wil::com_ptr<CommandlineArgs> _appArgs{ nullptr };
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
         bool _hasCommandLineArguments{ false };
+        bool _isHudWindow{ false };
         bool _gotSettingsStartupActions{ false };
         std::vector<winrt::Microsoft::Terminal::Settings::Model::ActionAndArgs> _settingsStartupArgs{};
         Windows::Foundation::IReference<Windows::Foundation::Rect> _contentBounds{ nullptr };
@@ -220,6 +225,7 @@ namespace winrt::TerminalApp::implementation
         FORWARDED_TYPED_EVENT(SetTaskbarProgress, winrt::Windows::Foundation::IInspectable, winrt::Windows::Foundation::IInspectable, _root, SetTaskbarProgress);
         FORWARDED_TYPED_EVENT(IdentifyWindowsRequested, Windows::Foundation::IInspectable, Windows::Foundation::IInspectable, _root, IdentifyWindowsRequested);
         FORWARDED_TYPED_EVENT(SummonWindowRequested, Windows::Foundation::IInspectable, Windows::Foundation::IInspectable, _root, SummonWindowRequested);
+        FORWARDED_TYPED_EVENT(ToggleHudModeRequested, Windows::Foundation::IInspectable, Windows::Foundation::IInspectable, _root, ToggleHudModeRequested);
         FORWARDED_TYPED_EVENT(OpenSystemMenu, Windows::Foundation::IInspectable, Windows::Foundation::IInspectable, _root, OpenSystemMenu);
         FORWARDED_TYPED_EVENT(QuitRequested, Windows::Foundation::IInspectable, Windows::Foundation::IInspectable, _root, QuitRequested);
         FORWARDED_TYPED_EVENT(ShowWindowChanged, Windows::Foundation::IInspectable, winrt::Microsoft::Terminal::Control::ShowWindowArgs, _root, ShowWindowChanged);

@@ -39,6 +39,8 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_GlobalSettings, AlwaysOnTop);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_GlobalSettings, AutoHideWindow);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_GlobalSettings, AlwaysShowNotificationIcon);
+        double HudActiveOpacity();
+        void HudActiveOpacity(double value);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_GlobalSettings, MinimizeToNotificationArea);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_GlobalSettings, ShowAdminShield);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_GlobalSettings, EnableUnfocusedAcrylic);
