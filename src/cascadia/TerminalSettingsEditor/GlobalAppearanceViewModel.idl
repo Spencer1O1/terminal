@@ -22,6 +22,7 @@ namespace Microsoft.Terminal.Settings.Editor
         Windows.Foundation.Collections.IObservableVector<Microsoft.Terminal.Settings.Editor.EnumEntry> TabWidthModeList { get; };
 
         Boolean InvertedDisableAnimations;
+        Double HudActiveOpacity;
 
         void ShowTitlebarToggled(IInspectable sender, Windows.UI.Xaml.RoutedEventArgs args);
 

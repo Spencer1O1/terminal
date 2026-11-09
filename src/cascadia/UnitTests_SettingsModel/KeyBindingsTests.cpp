@@ -40,7 +40,59 @@ namespace SettingsModelUnitTests
         TEST_METHOD(TestMoveTabArgs);
         TEST_METHOD(TestGetKeyBindingForAction);
         TEST_METHOD(KeybindingsWithoutVkey);
+        TEST_METHOD(HudGlobalHotkeys);
     };
+
+    void KeyBindingsTests::HudGlobalHotkeys()
+    {
+        const auto json = VerifyParseSucceeded(R"json([
+            { "command": "hudMode", "keys": "win+sc(41)" },
+            { "command": "hudVisibility", "keys": "win+shift+sc(41)" },
+            { "command": "toggleHudMode", "keys": "win+ctrl+sc(41)" },
+            { "command": { "action": "globalSummon", "name": "named-terminal", "toggleVisibility": false, "dropdownDuration": 0, "monitor": "any" }, "keys": "ctrl+alt+f6" }
+        ])json");
+        const auto map = winrt::make_self<implementation::ActionMap>();
+        const auto warnings = map->LayerJson(json, OriginTag::User);
+        VERIFY_ARE_EQUAL(0u, warnings.size());
+        const auto hotkeys = map->GlobalHotkeys();
+        VERIFY_ARE_EQUAL(3u, hotkeys.Size());
+        VERIFY_ARE_EQUAL(4u, map->KeyBindings().Size());
+        const auto modeKey = KeyChord{ winrt::Windows::System::VirtualKeyModifiers::Windows | winrt::Windows::System::VirtualKeyModifiers::Control, 0, 41 };
+        VERIFY_ARE_EQUAL(ShortcutAction::ToggleHudMode, map->GetActionByKeyChord(modeKey).ActionAndArgs().Action());
+        const auto interactionKey = KeyChord{ winrt::Windows::System::VirtualKeyModifiers::Windows, 0, 41 };
+        const auto summonKey = KeyChord{ winrt::Windows::System::VirtualKeyModifiers::Control | winrt::Windows::System::VirtualKeyModifiers::Menu, static_cast<int32_t>(winrt::Windows::System::VirtualKey::F6), 0 };
+        const auto interaction = map->GetActionByKeyChord(interactionKey).ActionAndArgs();
+        const auto summon = map->GetActionByKeyChord(summonKey).ActionAndArgs();
+        VERIFY_ARE_EQUAL(ShortcutAction::GlobalSummon, summon.Action());
+        VERIFY_ARE_NOT_EQUAL(winrt::get_self<implementation::ActionAndArgs>(interaction)->GenerateName(), winrt::get_self<implementation::ActionAndArgs>(summon)->GenerateName());
+        for (const auto& entry : hotkeys)
+        {
+            const auto action = entry.Value().ActionAndArgs();
+            const auto args = action.Args().try_as<GlobalSummonArgs>();
+            if (action.Action() == ShortcutAction::GlobalSummon)
+            {
+                VERIFY_IS_NOT_NULL(args);
+                VERIFY_ARE_EQUAL(L"named-terminal", args.Name());
+                VERIFY_IS_FALSE(args.ToggleVisibility());
+            }
+            else
+            {
+                VERIFY_IS_NULL(action.Args());
+            }
+            const auto serialized = implementation::ActionAndArgs::ToJson(action);
+            std::vector<SettingsLoadWarnings> parseWarnings;
+            const auto roundTrip = implementation::ActionAndArgs::FromJson(serialized, parseWarnings);
+            VERIFY_ARE_EQUAL(action.Action(), roundTrip->Action());
+            if (args)
+            {
+                VERIFY_IS_TRUE(args.Equals(roundTrip->Args()));
+            }
+            else
+            {
+                VERIFY_IS_NULL(roundTrip->Args());
+            }
+        }
+    }
 
     void KeyBindingsTests::KeyChords()
     {

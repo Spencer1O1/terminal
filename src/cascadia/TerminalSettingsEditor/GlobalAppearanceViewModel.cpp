@@ -5,6 +5,7 @@
 #include "GlobalAppearanceViewModel.h"
 #include "GlobalAppearanceViewModel.g.cpp"
 #include "EnumEntry.h"
+#include <cmath>
 
 using namespace winrt;
 using namespace winrt::Windows::UI::Xaml;
@@ -99,6 +100,21 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
             return RS_(L"Globals_ThemeSystemLegacy/Content");
         }
         return theme.Name();
+    }
+
+    double GlobalAppearanceViewModel::HudActiveOpacity()
+    {
+        return _GlobalSettings.HudActiveOpacity();
+    }
+
+    void GlobalAppearanceViewModel::HudActiveOpacity(const double value)
+    {
+        // NumberBox uses NaN when its field is empty; retain the saved setting.
+        if (std::isfinite(value))
+        {
+            _GlobalSettings.HudActiveOpacity(std::clamp(value, 0.0, 100.0));
+        }
+        _NotifyChanges(L"HudActiveOpacity");
     }
 
     bool GlobalAppearanceViewModel::InvertedDisableAnimations()

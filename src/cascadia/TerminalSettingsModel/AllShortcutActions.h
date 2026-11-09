@@ -113,7 +113,10 @@
     ON_ALL_ACTIONS(OpenScratchpad)          \
     ON_ALL_ACTIONS(OpenAbout)               \
     ON_ALL_ACTIONS(QuickFix)                \
-    ON_ALL_ACTIONS(OpenCWD)
+    ON_ALL_ACTIONS(OpenCWD)                 \
+    ON_ALL_ACTIONS(HudMode)                 \
+    ON_ALL_ACTIONS(HudVisibility)           \
+    ON_ALL_ACTIONS(ToggleHudMode)
 
 #define ALL_SHORTCUT_ACTIONS_WITH_ARGS             \
     ON_ALL_ACTIONS_WITH_ARGS(AdjustFontSize)       \

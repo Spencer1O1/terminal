@@ -233,10 +233,22 @@ AppHost* WindowEmperor::GetWindowById(uint64_t id) const noexcept
 AppHost* WindowEmperor::GetWindowByName(std::wstring_view name) const noexcept
 {
     _assertIsMainThread();
-
     for (const auto& window : _windows)
     {
         if (window->Logic().WindowProperties().WindowName() == name)
+        {
+            return window.get();
+        }
+    }
+    return nullptr;
+}
+
+AppHost* WindowEmperor::GetHudWindow() const noexcept
+{
+    _assertIsMainThread();
+    for (const auto& window : _windows)
+    {
+        if (window->Logic().IsHudWindow())
         {
             return window.get();
         }
@@ -294,13 +306,17 @@ void WindowEmperor::CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs args
     }
 }
 
-AppHost* WindowEmperor::_mostRecentWindow() const noexcept
+AppHost* WindowEmperor::_mostRecentWindow(const bool includeHud) const noexcept
 {
     int64_t max = INT64_MIN;
     AppHost* mostRecent = nullptr;
 
     for (const auto& w : _windows)
     {
+        if (!includeHud && w->Logic().IsHudWindow())
+        {
+            continue;
+        }
         const auto lastActivatedTime = w->GetLastActivatedTime();
         if (lastActivatedTime > max)
         {
@@ -644,7 +660,7 @@ void WindowEmperor::_dispatchCommandline(winrt::TerminalApp::CommandlineArgs arg
         switch (windowingBehavior)
         {
         case WindowingMode::UseAnyExisting:
-            window = _mostRecentWindow();
+            window = _mostRecentWindow(false);
             break;
         case WindowingMode::UseExisting:
             _dispatchCommandlineCurrentDesktop(std::move(args));
@@ -687,6 +703,10 @@ safe_void_coroutine WindowEmperor::_dispatchCommandlineCurrentDesktop(winrt::Ter
         int64_t max = INT64_MIN;
         for (const auto& w : _windows)
         {
+            if (w->Logic().IsHudWindow())
+            {
+                continue;
+            }
             const auto lastActivatedTime = w->GetLastActivatedTime();
             const auto desktopId = co_await w->GetVirtualDesktopId();
             if (desktopId == currentDesktop && lastActivatedTime > max)
@@ -704,7 +724,7 @@ safe_void_coroutine WindowEmperor::_dispatchCommandlineCurrentDesktop(winrt::Ter
     {
         // If virtual desktops have never been used, and in turn Explorer never set them up,
         // GetCurrentVirtualDesktopId will return false. In this case just use the current (only) desktop.
-        window = _mostRecentWindow();
+        window = _mostRecentWindow(false);
     }
 
     if (window)
@@ -736,14 +756,7 @@ bool WindowEmperor::_summonWindow(const SummonWindowSelectionArgs& args) const
     }
     else if (!args.WindowName.empty())
     {
-        for (const auto& w : _windows)
-        {
-            if (w->Logic().WindowProperties().WindowName() == args.WindowName)
-            {
-                window = w.get();
-                break;
-            }
-        }
+        window = GetWindowByName(args.WindowName);
     }
     else
     {
@@ -1022,6 +1035,9 @@ LRESULT WindowEmperor::_messageHandler(HWND window, UINT const message, WPARAM c
                 const auto argv = commandlineToArgArray(handoff.args.c_str());
                 _dispatchCommandlineCommon(argv, handoff.cwd, handoff.env, handoff.show);
             }
+            return 0;
+        case WM_UPDATE_NOTIFICATION_ICON:
+            _checkWindowsForNotificationIcon();
             return 0;
         case WM_HOTKEY:
             _hotkeyPressed(static_cast<long>(wParam));
@@ -1305,12 +1321,26 @@ void WindowEmperor::_notificationAreaMenuClicked(const WPARAM wParam, const LPAR
 
 void WindowEmperor::_hotkeyPressed(const long hotkeyIndex)
 {
-    if (hotkeyIndex < 0 || static_cast<size_t>(hotkeyIndex) > _hotkeys.size())
+    if (hotkeyIndex < 0 || static_cast<size_t>(hotkeyIndex) >= _hotkeys.size())
     {
         return;
     }
 
-    const auto& summonArgs = til::at(_hotkeys, hotkeyIndex);
+    // Native window calls can pump messages and reload the hotkey collection.
+    const auto hotkey = til::at(_hotkeys, hotkeyIndex);
+    if (hotkey.Action == Settings::Model::ShortcutAction::HudMode || hotkey.Action == Settings::Model::ShortcutAction::HudVisibility)
+    {
+        if (const auto hud = GetHudWindow())
+        {
+            winrt::TerminalApp::SummonWindowBehavior behavior;
+            behavior.ToggleHudInteraction(hotkey.Action == Settings::Model::ShortcutAction::HudMode);
+            behavior.ToggleVisibility(hotkey.Action == Settings::Model::ShortcutAction::HudVisibility);
+            behavior.ToMonitor(winrt::TerminalApp::MonitorBehavior::InPlace);
+            hud->HandleSummon(behavior);
+        }
+        return;
+    }
+    const auto& summonArgs = hotkey.SummonArgs;
 
     // desktop:any - MoveToCurrentDesktop=false, OnCurrentDesktop=false
     // desktop:toCurrent - MoveToCurrentDesktop=true, OnCurrentDesktop=false
@@ -1396,11 +1426,14 @@ void WindowEmperor::_setupGlobalHotkeys()
     // Re-register all current hotkeys.
     for (const auto& [keyChord, cmd] : _app.Logic().GlobalHotkeys())
     {
-        if (auto summonArgs = cmd.ActionAndArgs().Args().try_as<Settings::Model::GlobalSummonArgs>())
+        const auto action = cmd.ActionAndArgs();
+        const auto kind = action.Action();
+        auto summonArgs = action.Args().try_as<Settings::Model::GlobalSummonArgs>();
+        if (summonArgs || kind == Settings::Model::ShortcutAction::HudMode || kind == Settings::Model::ShortcutAction::HudVisibility)
         {
             const auto index = gsl::narrow_cast<int>(_hotkeys.size());
             _registerHotKey(index, keyChord);
-            _hotkeys.emplace_back(summonArgs);
+            _hotkeys.push_back({ kind, std::move(summonArgs) });
         }
     }
 }
@@ -1435,7 +1468,7 @@ void WindowEmperor::_checkWindowsForNotificationIcon()
     {
         for (const auto& host : _windows)
         {
-            needsIcon |= host->Logic().IsQuakeWindow();
+            needsIcon |= host->Logic().IsQuakeWindow() || host->Logic().IsHudWindow();
         }
     }
 

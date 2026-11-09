@@ -516,6 +516,10 @@ void IslandWindow::_OnGetMinMaxInfo(const WPARAM /*wParam*/, const LPARAM lParam
     {
         // wparam = 0 indicates the window was deactivated
         const bool activated = LOWORD(wparam) != 0;
+        if (activated && lparam)
+        {
+            _previousForegroundWindow = reinterpret_cast<HWND>(lparam);
+        }
         WindowActivated.raise(activated);
 
         if (_autoHideWindow && !activated)

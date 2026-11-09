@@ -110,6 +110,8 @@ namespace winrt::TerminalApp::implementation
 
         void TitlebarClicked();
         void WindowVisibilityChanged(const bool showOrHide);
+        void SetHudMode(bool enabled, bool passive);
+        bool CanEnterHudMode() const;
 
         float CalcSnappedDimension(const bool widthOrHeight, const float dimension) const;
 
@@ -188,6 +190,7 @@ namespace winrt::TerminalApp::implementation
         til::typed_event<IInspectable, IInspectable> IdentifyWindowsRequested;
         til::typed_event<IInspectable, winrt::TerminalApp::RenameWindowRequestedArgs> RenameWindowRequested;
         til::typed_event<IInspectable, IInspectable> SummonWindowRequested;
+        til::typed_event<IInspectable, IInspectable> ToggleHudModeRequested;
         til::typed_event<IInspectable, winrt::Microsoft::Terminal::Control::WindowSizeChangedEventArgs> WindowSizeChanged;
 
         til::typed_event<IInspectable, IInspectable> OpenSystemMenu;
@@ -229,6 +232,7 @@ namespace winrt::TerminalApp::implementation
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _tabs;
         Windows::Foundation::Collections::IObservableVector<TerminalApp::Tab> _mruTabs;
         static winrt::com_ptr<Tab> _GetTabImpl(const TerminalApp::Tab& tab);
+        static bool _IsTerminalTab(const TerminalApp::Tab& tab);
 
         void _UpdateTabIndices();
 
@@ -249,6 +253,16 @@ namespace winrt::TerminalApp::implementation
 
         bool _activated{ false };
         bool _visible{ true };
+        bool _hudEnabled{ false };
+        bool _hudPassive{ false };
+        struct HudPresentation
+        {
+            bool focusMode;
+            bool fullscreen;
+            bool showTabsFullscreen;
+            bool alwaysOnTop;
+        };
+        std::optional<HudPresentation> _hudPresentation;
 
         std::vector<std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs>> _previouslyClosedPanesAndTabs{};
 

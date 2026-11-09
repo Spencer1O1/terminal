@@ -266,9 +266,16 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         void PreviewInput(std::wstring_view input);
 
-        RUNTIME_SETTING(float, Opacity, _settings.Opacity());
+    private:
+        std::optional<float> _runtimeOpacity;
+        std::optional<bool> _runtimeUseAcrylic;
+        std::optional<float> _hudOpacity;
+
+    public:
+        bool SetHudMode(bool enabled, bool passive, float activeOpacity);
+        float Opacity() const { return _hudOpacity.value_or(_runtimeOpacity.value_or(_settings.Opacity())); }
+        bool UseAcrylic() const { return !_hudOpacity && _runtimeUseAcrylic.value_or(_settings.UseAcrylic()); }
         RUNTIME_SETTING(float, FocusedOpacity, FocusedAppearance().Opacity());
-        RUNTIME_SETTING(bool, UseAcrylic, _settings.UseAcrylic());
 
         // -------------------------------- WinRT Events ---------------------------------
         // clang-format off

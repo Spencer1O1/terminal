@@ -941,6 +941,11 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_UpdatedSelectedTab(const winrt::TerminalApp::Tab& tab)
     {
+        if (_hudEnabled && !_IsTerminalTab(tab))
+        {
+            // Opaque nonterminal UI must not become a click-through overlay.
+            ToggleHudModeRequested.raise(*this, nullptr);
+        }
         // Unfocus all the tabs.
         for (const auto& tab : _tabs)
         {

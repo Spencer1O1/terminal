@@ -56,6 +56,7 @@ public:
     void SetTaskbarProgress(const size_t state, const size_t progress);
 
     void SummonWindow(winrt::TerminalApp::SummonWindowBehavior args);
+    HWND PreviousForegroundWindow() const noexcept { return _previousForegroundWindow; }
 
     bool IsQuakeWindow() const noexcept;
     void IsQuakeWindow(bool isQuakeWindow) noexcept;
@@ -143,6 +144,7 @@ protected:
 
     bool _isQuakeWindow{ false };
     bool _autoHideWindow{ false };
+    HWND _previousForegroundWindow{};
 
     void _enterQuakeMode();
     til::rect _getQuakeModeSize(HMONITOR hmon);

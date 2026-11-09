@@ -5,6 +5,8 @@
 
 #include "pch.h"
 #include "NonClientIslandWindow.h"
+#include "HudState.h"
+#include "HudInput.h"
 #include <ThrottledFunc.h>
 
 class WindowEmperor;
@@ -24,7 +26,7 @@ public:
 
     bool OnDirectKeyEvent(uint32_t vkey, uint8_t scanCode, bool down);
     void SetTaskbarProgress(const winrt::Windows::Foundation::IInspectable& sender, const winrt::Windows::Foundation::IInspectable& args);
-    safe_void_coroutine HandleSummon(winrt::TerminalApp::SummonWindowBehavior args) const;
+    safe_void_coroutine HandleSummon(winrt::TerminalApp::SummonWindowBehavior args);
     void DispatchCommandline(winrt::TerminalApp::CommandlineArgs args);
 
 private:
@@ -47,6 +49,23 @@ private:
     winrt::Microsoft::Terminal::Settings::Model::LaunchMode _launchMode{};
     uint32_t _launchShowWindowCommand{ SW_NORMAL };
     bool _useNonClientArea{ false };
+    Microsoft::Terminal::Hud::StateMachine _hudState;
+    Microsoft::Terminal::Hud::InputMode _hudInput;
+    bool _changingHudState{ false };
+    uint64_t _hudModeGeneration{};
+    HWND _hudReturnFocus{};
+    DWORD _hudReturnFocusProcess{};
+    DWORD _hudReturnFocusThread{};
+    std::optional<WINDOWPLACEMENT> _hudNormalPlacement;
+    void _CaptureHudPlacement();
+    void _ToggleHudModeRequested(const winrt::Windows::Foundation::IInspectable&,
+                                 const winrt::Windows::Foundation::IInspectable&);
+
+    void _RememberHudForeground();
+    void _RestoreHudForeground();
+    void _ApplyHudState(Microsoft::Terminal::Hud::Action action);
+    void _IsHudWindowChanged(const winrt::Windows::Foundation::IInspectable& sender,
+                             const winrt::Windows::Foundation::IInspectable& args);
 
     void _revokeWindowCallbacks();
 
@@ -153,7 +172,9 @@ private:
         winrt::TerminalApp::TerminalWindow::SetTaskbarProgress_revoker SetTaskbarProgress;
         winrt::TerminalApp::TerminalWindow::IdentifyWindowsRequested_revoker IdentifyWindowsRequested;
         winrt::TerminalApp::TerminalWindow::IsQuakeWindowChanged_revoker IsQuakeWindowChanged;
+        winrt::TerminalApp::TerminalWindow::IsHudWindowChanged_revoker IsHudWindowChanged;
         winrt::TerminalApp::TerminalWindow::SummonWindowRequested_revoker SummonWindowRequested;
+        winrt::TerminalApp::TerminalWindow::ToggleHudModeRequested_revoker ToggleHudModeRequested;
         winrt::TerminalApp::TerminalWindow::OpenSystemMenu_revoker OpenSystemMenu;
         winrt::TerminalApp::TerminalWindow::QuitRequested_revoker QuitRequested;
         winrt::TerminalApp::TerminalWindow::ShowWindowChanged_revoker ShowWindowChanged;

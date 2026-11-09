@@ -51,6 +51,8 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="AppHost.h" />
+    <ClInclude Include="HudState.h" />
+    <ClInclude Include="HudInput.h" />
     <ClInclude Include="BaseWindow.h" />
     <ClInclude Include="IslandWindow.h" />
     <ClInclude Include="NonClientIslandWindow.h" />
@@ -63,6 +65,7 @@
     </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="AppHost.cpp" />
+    <ClCompile Include="AppHost.Hud.cpp" />
     <ClCompile Include="IslandWindow.cpp" />
     <ClCompile Include="NonClientIslandWindow.cpp" />
     <ClCompile Include="VirtualDesktopUtils.cpp" />

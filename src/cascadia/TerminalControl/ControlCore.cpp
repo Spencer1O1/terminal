@@ -754,9 +754,22 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         }
     }
 
+    bool ControlCore::SetHudMode(const bool enabled, const bool passive, const float activeOpacity)
+    {
+        // Override only background opacity; glyphs retain their own alpha.
+        // Never write this into the saved settings or normal runtime opacity.
+        const auto opacity = enabled ? std::optional<float>{ passive ? 0.0f : std::clamp(activeOpacity, 0.0f, 1.0f) } : std::nullopt;
+        if (_hudOpacity == opacity)
+        {
+            return false;
+        }
+        _hudOpacity = opacity;
+        return true;
+    }
+
     void ControlCore::AdjustOpacity(const float adjustment)
     {
-        if (adjustment == 0)
+        if (_hudOpacity || adjustment == 0)
         {
             return;
         }
@@ -775,7 +788,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     {
         const auto newOpacity = std::clamp(opacity, 0.0f, 1.0f);
 
-        if (newOpacity == Opacity())
+        if (newOpacity == _runtimeOpacity.value_or(_settings.Opacity()))
         {
             return;
         }
@@ -799,7 +812,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             _renderer->NotifyPaintFrame();
         }
 
-        auto eventArgs = winrt::make_self<TransparencyChangedEventArgs>(newOpacity);
+        auto eventArgs = winrt::make_self<TransparencyChangedEventArgs>(Opacity());
         TransparencyChanged.raise(*this, *eventArgs);
     }
 
@@ -2472,6 +2485,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
     void ControlCore::AdjustOpacity(const float opacityAdjust, const bool relative)
     {
+        if (_hudOpacity)
+        {
+            return;
+        }
         if (relative)
         {
             AdjustOpacity(opacityAdjust);

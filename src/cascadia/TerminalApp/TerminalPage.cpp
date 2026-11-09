@@ -286,6 +286,10 @@ namespace winrt::TerminalApp::implementation
         if (needRefreshUI)
         {
             _RefreshUIForSettingsReload();
+            if (_hudEnabled)
+            {
+                SetHudMode(true, _hudPassive);
+            }
         }
 
         // Upon settings update we reload the system settings for scrolling as well.
@@ -435,7 +439,7 @@ namespace winrt::TerminalApp::implementation
         _layoutUpdatedRevoker = _tabContent.LayoutUpdated(winrt::auto_revoke, { this, &TerminalPage::_OnFirstLayout });
 
         _isAlwaysOnTop = _settings.GlobalSettings().AlwaysOnTop();
-        _showTabsFullscreen = _settings.GlobalSettings().ShowTabsFullscreen();
+        _showTabsFullscreen = !_hudEnabled && _settings.GlobalSettings().ShowTabsFullscreen();
 
         // DON'T set up Toasts/TeachingTips here. They should be loaded and
         // initialized the first time they're opened, in whatever method opens
@@ -2605,6 +2609,10 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_activePaneChanged(winrt::TerminalApp::Tab sender,
                                           Windows::Foundation::IInspectable /*args*/)
     {
+        if (_hudEnabled && sender == _GetFocusedTab() && !_IsTerminalTab(sender))
+        {
+            ToggleHudModeRequested.raise(*this, nullptr);
+        }
         if (const auto tab{ _GetTabImpl(sender) })
         {
             // Possibly update the icon of the tab.
@@ -3569,6 +3577,8 @@ namespace winrt::TerminalApp::implementation
 
     TermControl TerminalPage::_SetupControl(const TermControl& term)
     {
+        term.SetHudMode(_hudEnabled, _hudPassive, static_cast<float>(_settings.GlobalSettings().HudActiveOpacity() / 100.0));
+
         // GH#12515: ConPTY assumes it's hidden at the start. If we're not, let it know now.
         if (_visible)
         {
@@ -3839,7 +3849,7 @@ namespace winrt::TerminalApp::implementation
     // - <none>
     void TerminalPage::_SetBackgroundImage(const winrt::Microsoft::Terminal::Settings::Model::IAppearanceConfig& newAppearance)
     {
-        if (!_settings.GlobalSettings().UseBackgroundImageForWindow())
+        if (_hudEnabled || !_settings.GlobalSettings().UseBackgroundImageForWindow())
         {
             _tabContent.Background(nullptr);
             return;
@@ -3951,7 +3961,7 @@ namespace winrt::TerminalApp::implementation
         _isAlwaysOnTop = _settings.GlobalSettings().AlwaysOnTop();
         AlwaysOnTopChanged.raise(*this, nullptr);
 
-        _showTabsFullscreen = _settings.GlobalSettings().ShowTabsFullscreen();
+        _showTabsFullscreen = !_hudEnabled && _settings.GlobalSettings().ShowTabsFullscreen();
 
         // Settings AllowDependentAnimations will affect whether animations are
         // enabled application-wide, so we don't need to check it each time we
@@ -4082,6 +4092,90 @@ namespace winrt::TerminalApp::implementation
         _DismissTabContextMenus();
     }
 
+    bool TerminalPage::_IsTerminalTab(const TerminalApp::Tab& tab)
+    {
+        if (!tab)
+        {
+            return false;
+        }
+        const auto impl = _GetTabImpl(tab);
+        if (!impl)
+        {
+            return false;
+        }
+        const auto rootPane = impl->GetRootPane();
+        if (!rootPane)
+        {
+            return false;
+        }
+        bool terminal = false;
+        bool otherContent = false;
+        rootPane->WalkTree([&](auto&& pane) {
+            if (pane->GetContent())
+            {
+                const auto control = pane->GetTerminalControl();
+                terminal |= static_cast<bool>(control);
+                otherContent |= !control;
+            }
+        });
+        return terminal && !otherContent;
+    }
+
+    bool TerminalPage::CanEnterHudMode() const
+    {
+        return _IsTerminalTab(_GetFocusedTab());
+    }
+
+    // Apply HUD appearance to existing panes and retain it for new panes.
+    void TerminalPage::SetHudMode(const bool enabled, const bool passive)
+    {
+        if (enabled && !_hudEnabled)
+        {
+            _hudPresentation = HudPresentation{ FocusMode(), Fullscreen(), ShowTabsFullscreen(), AlwaysOnTop() };
+        }
+        _hudEnabled = enabled;
+        _hudPassive = passive;
+        if (enabled)
+        {
+            SetShowTabsFullscreen(false);
+        }
+        else if (_hudPresentation)
+        {
+            const auto saved = *_hudPresentation;
+            _hudPresentation.reset();
+            SetFullscreen(saved.fullscreen);
+            SetFocusMode(saved.focusMode);
+            SetShowTabsFullscreen(saved.showTabsFullscreen);
+            _isAlwaysOnTop = saved.alwaysOnTop;
+            AlwaysOnTopChanged.raise(*this, nullptr);
+        }
+        if (enabled)
+        {
+            SetFocusMode(true);
+            SetFullscreen(true);
+            _tabContent.Background(nullptr);
+        }
+        for (const auto& tab : _tabs)
+        {
+            if (auto tabImpl{ _GetTabImpl(tab) })
+            {
+                tabImpl->GetRootPane()->WalkTree([&](auto&& pane) {
+                    if (auto control = pane->GetTerminalControl())
+                    {
+                        control.SetHudMode(enabled, passive, static_cast<float>(_settings.GlobalSettings().HudActiveOpacity() / 100.0));
+                    }
+                });
+            }
+        }
+        if (!enabled)
+        {
+            if (const auto tab = _GetFocusedTabImpl())
+            {
+                _UpdateBackground(tab->GetFocusedProfile());
+            }
+        }
+    }
+
     // Method Description:
     // - Notifies all attached console controls that the visibility of the
     //   hosting window has changed. The underlying PTYs may need to know this
@@ -4139,7 +4233,7 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::SetFocusMode(const bool inFocusMode)
     {
-        const auto newInFocusMode = inFocusMode;
+        const auto newInFocusMode = _hudEnabled || inFocusMode;
         if (newInFocusMode != FocusMode())
         {
             _isInFocusMode = newInFocusMode;
@@ -4360,6 +4454,7 @@ namespace winrt::TerminalApp::implementation
     // - Updates the visibility of the tab row when in fullscreen state.
     void TerminalPage::SetShowTabsFullscreen(bool newShowTabsFullscreen)
     {
+        newShowTabsFullscreen = !_hudEnabled && newShowTabsFullscreen;
         if (_showTabsFullscreen == newShowTabsFullscreen)
         {
             return;
@@ -4377,6 +4472,7 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::SetFullscreen(bool newFullscreen)
     {
+        newFullscreen = _hudEnabled || newFullscreen;
         if (_isFullscreen == newFullscreen)
         {
             return;

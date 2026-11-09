@@ -51,6 +51,7 @@ namespace Microsoft.Terminal.Settings.Model
     };
 
     [default_interface] runtimeclass GlobalAppSettings {
+        INHERITABLE_SETTING(Double, HudActiveOpacity);
         Guid DefaultProfile;
 
         INHERITABLE_SETTING(String, UnparsedDefaultProfile);
