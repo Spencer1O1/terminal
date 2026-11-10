@@ -39,6 +39,7 @@ public static class HudProbe {
     [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
     [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr window,uint command);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
     public static bool IsAbove(IntPtr upper,IntPtr lower) {
         var seen=new HashSet<IntPtr>();
         for (var window=upper;window!=IntPtr.Zero && seen.Add(window);window=GetWindow(window,2)) {
@@ -102,6 +103,7 @@ function Assert-BackgroundOpacity([double]$Opacity, [int]$X=($screen.Left+[int](
 }
 . (Join-Path $PSScriptRoot 'WindowOrderProbes.ps1')
 . (Join-Path $PSScriptRoot 'MultiInstanceProbe.ps1')
+. (Join-Path $PSScriptRoot 'PaddingProbes.ps1')
 function Read-State([IntPtr]$Window) {
     $rect = [HudProbe+Rect]::new()
     [void][HudProbe]::GetWindowRect($Window,[ref]$rect)
@@ -137,7 +139,8 @@ $fixtureSettings = @{
         @{keys='ctrl+alt+f6';command=@{action='globalSummon';name=$WindowName;toggleVisibility=$false;dropdownDuration=0;monitor='any'}},
         @{keys='ctrl+alt+f13';id='Terminal.HudMode'},
         @{keys='ctrl+alt+f14';id='Terminal.HudVisibility'},
-        @{keys='ctrl+alt+f15';id='Terminal.ToggleHudMode'}
+        @{keys='ctrl+alt+f15';id='Terminal.ToggleHudMode'},
+        @{keys='ctrl+alt+f9';command='closePane'}
     )
 }
 $fixtureSettings | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $settingsPath -Encoding utf8NoBOM
@@ -156,7 +159,7 @@ Wait-Ui
 $process=$null
 $script:additionalProcesses=@()
 try {
-    foreach ($key in @(0x74,0x75,0x76,0x77,0x7C,0x7D,0x7E)) {
+    foreach ($key in @(0x74,0x75,0x76,0x77,0x78,0x7C,0x7D,0x7E)) {
         if (-not [HudProbe]::RegisterHotKey([IntPtr]::Zero,$key,0x4003,$key)) { throw "Fixture shortcut is already occupied: $key" }
         [void][HudProbe]::UnregisterHotKey([IntPtr]::Zero,$key)
     }
@@ -199,6 +202,9 @@ try {
     Write-Output ('Initial HUD: HWND={0:X}, foreground={1:X}, extended style={2:X}' -f $target.ToInt64(),$state.foreground,$state.exstyle)
     Assert-Probe (($state.exstyle -band 8) -ne 0) 'HUD is topmost'
     Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'HUD started Active'
+    $initialControls=@(Get-TerminalBounds)
+    Assert-Probe ($initialControls.Count -eq 1) 'initial HUD exposes its terminal bounds'
+    $hudContentWithoutPadding=$initialControls[0]
     $activeBitmap=[System.Drawing.Bitmap]::new($screen.Width,$screen.Height)
     $activeGraphics=[System.Drawing.Graphics]::FromImage($activeBitmap)
     try {
@@ -377,18 +383,23 @@ try {
         if ($candidate) { $input=$candidate; break }
     }
     Assert-Probe ($null -ne $input) 'HUD Active opacity input is exposed in Appearance'
+    $horizontalInput=Get-HudPaddingField $root 'HUD horizontal padding'
+    $verticalInput=Get-HudPaddingField $root 'HUD vertical padding'
+    $save=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty,'SaveButton'))
+    Assert-Probe ($null -ne $save) 'Settings save button is accessible'
     $input.SetFocus()
     ([System.Windows.Automation.ValuePattern]$input.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)).SetValue('47')
     if ([HudProbe]::GetForegroundWindow() -ne $target) { throw 'Focus left the fixture before committing the opacity field.' }
     [HudProbe]::keybd_event(9,0,0,[UIntPtr]::Zero)
     [HudProbe]::keybd_event(9,0,2,[UIntPtr]::Zero)
     Wait-Ui 200
-    $save=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty,'SaveButton'))
-    Assert-Probe ($null -ne $save) 'Settings save button is accessible'
+    Set-HudPaddingField $horizontalInput '48'
+    Set-HudPaddingField $verticalInput '24'
     ([System.Windows.Automation.InvokePattern]$save.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke()
     Wait-Ui 800
     $savedSettings=Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
     Assert-Probe ($savedSettings.hudActiveOpacity -eq 47) 'Appearance UI saved the requested HUD opacity'
+    Assert-Probe ($savedSettings.hudHorizontalPadding -eq 48 -and $savedSettings.hudVerticalPadding -eq 24) 'Appearance UI saved horizontal and vertical HUD padding'
     # Select the terminal tab explicitly, as a user would before entering HUD.
     $tabs=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::TabItem))
     $terminalTab=$null
@@ -398,18 +409,19 @@ try {
     Assert-Probe ($null -ne $terminalTab) 'existing terminal tab is available for manual selection'
     ([System.Windows.Automation.SelectionItemPattern]$terminalTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)).Select()
     Wait-Ui 300
+    $normalContentBeforePadding=@(Get-TerminalBounds)[0]
     Invoke-ModeToggle
     Wait-Ui 500
+    Assert-HudPadding 48 24
+    $paddingScale=[HudProbe]::GetDpiForWindow($target)/96.0
+    Assert-BackgroundOpacity 0 ($screen.Left+[int](20*$paddingScale)) ($screen.Top+[int](10*$paddingScale)) 'Active HUD outer padding'
     Assert-BackgroundOpacity 47
     $afterSettings=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
     Assert-Probe ($afterSettings.pid -eq $shell.pid) 'HUD return from Settings reused the existing terminal session'
     Invoke-FixtureChord 0x7C
     Wait-Ui 400
     Assert-BackgroundOpacity 0 -Context 'Passive terminal after Settings'
-    Invoke-FixtureChord 0x7C
-    Wait-Ui 300
-    Invoke-ModeToggle
-    Wait-Ui 300
+    Assert-HudPaddingReloadAndRestore
     Invoke-ModeToggle
     Wait-Ui 300
     Invoke-FixtureChord 0x77 # Rename to the reserved Quake name.

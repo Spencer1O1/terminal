@@ -2377,6 +2377,20 @@
       "description": "Properties that affect the entire window, regardless of the profile settings.",
       "type": "object",
       "properties": {
+        "hudHorizontalPadding": {
+          "default": 0,
+          "description": "Extra left and right spacing around the entire HUD content in device-independent pixels. Normal terminal and per-profile padding are unchanged.",
+          "minimum": 0,
+          "maximum": 1000,
+          "type": "number"
+        },
+        "hudVerticalPadding": {
+          "default": 0,
+          "description": "Extra top and bottom spacing around the entire HUD content in device-independent pixels. Normal terminal and per-profile padding are unchanged.",
+          "minimum": 0,
+          "maximum": 1000,
+          "type": "number"
+        },
         "hudActiveOpacity": {
           "default": 35,
           "description": "HUD Active background opacity as a percentage. Passive HUD backgrounds remain transparent; text opacity is unchanged.",

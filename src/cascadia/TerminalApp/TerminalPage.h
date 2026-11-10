@@ -261,6 +261,7 @@ namespace winrt::TerminalApp::implementation
             bool fullscreen;
             bool showTabsFullscreen;
             bool alwaysOnTop;
+            winrt::Windows::UI::Xaml::Thickness contentMargin;
         };
         std::optional<HudPresentation> _hudPresentation;
 

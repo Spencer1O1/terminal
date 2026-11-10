@@ -4131,7 +4131,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (enabled && !_hudEnabled)
         {
-            _hudPresentation = HudPresentation{ FocusMode(), Fullscreen(), ShowTabsFullscreen(), AlwaysOnTop() };
+            _hudPresentation = HudPresentation{ FocusMode(), Fullscreen(), ShowTabsFullscreen(), AlwaysOnTop(), _tabContent.Margin() };
         }
         _hudEnabled = enabled;
         _hudPassive = passive;
@@ -4143,6 +4143,7 @@ namespace winrt::TerminalApp::implementation
         {
             const auto saved = *_hudPresentation;
             _hudPresentation.reset();
+            _tabContent.Margin(saved.contentMargin);
             SetFullscreen(saved.fullscreen);
             SetFocusMode(saved.focusMode);
             SetShowTabsFullscreen(saved.showTabsFullscreen);
@@ -4154,6 +4155,13 @@ namespace winrt::TerminalApp::implementation
             SetFocusMode(true);
             SetFullscreen(true);
             _tabContent.Background(nullptr);
+            // Inset the shared content once, rather than adding padding to each
+            // pane. The content's actual size remains correct for pane layout.
+            const auto horizontal = _settings.GlobalSettings().HudHorizontalPadding();
+            const auto vertical = _settings.GlobalSettings().HudVerticalPadding();
+            const auto normal = _hudPresentation->contentMargin;
+            _tabContent.Margin({ normal.Left + horizontal, normal.Top + vertical,
+                                 normal.Right + horizontal, normal.Bottom + vertical });
         }
         for (const auto& tab : _tabs)
         {
