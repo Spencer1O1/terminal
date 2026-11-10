@@ -8,6 +8,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'HudModeTests\DesktopIsolation.ps1')
 $runtime = (Get-Item -LiteralPath $RuntimeDirectory).FullName
 $ArtifactDirectory = [System.IO.Path]::GetFullPath($ArtifactDirectory)
 $runtimePrefix = $runtime.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
@@ -21,6 +22,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $runtime 'WindowsTerminal.exe'))) {
 if (Test-Path -LiteralPath $ArtifactDirectory) {
     throw 'ArtifactDirectory must be a new directory; existing files are preserved.'
 }
+Assert-HudDesktopIsolation
 $evidence = (New-Item -ItemType Directory -Path $ArtifactDirectory).FullName
 Write-Output "Desktop test artifacts: $evidence"
 Start-Transcript -Path (Join-Path $evidence 'desktop-output.txt') | Out-Null

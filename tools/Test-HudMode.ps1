@@ -1,9 +1,10 @@
 # Standalone policy and Win32 input-style tests. Does not launch Terminal.
 #Requires -Version 7
 [CmdletBinding()]
-param()
+param([switch]$CrossElevation)
 
 $ErrorActionPreference = 'Stop'
+$elevationCommand = if ($CrossElevation) { "if errorlevel 1 exit /b 1`r`nhud-ownership.exe cross-elevation" } else { '' }
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $visualStudio = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
@@ -15,8 +16,8 @@ $buildDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ('wt-hud-tests-' +
 New-Item -ItemType Directory -Path (Join-Path $buildDirectory 'tests') | Out-Null
 try {
     $source = Join-Path $repositoryRoot 'src\cascadia\WindowsTerminal'
-    Copy-Item (Join-Path $source 'HudState.h'), (Join-Path $source 'HudInput.h') $buildDirectory
-    Copy-Item (Join-Path $source 'tests\HudStateTests.cpp'), (Join-Path $source 'tests\HudInputTests.cpp') (Join-Path $buildDirectory 'tests')
+    Copy-Item (Join-Path $source 'HudState.h'), (Join-Path $source 'HudInput.h'), (Join-Path $source 'HudOwnership.h') $buildDirectory
+    Copy-Item (Join-Path $source 'tests\HudStateTests.cpp'), (Join-Path $source 'tests\HudInputTests.cpp'), (Join-Path $source 'tests\HudOwnershipTests.cpp') (Join-Path $buildDirectory 'tests')
     @"
 @echo off
 call "$vcvars" x64 >nul
@@ -28,6 +29,11 @@ if errorlevel 1 exit /b 1
 cl /nologo /std:c++17 /EHsc /W4 /WX /permissive- /Fe:hud-input.exe tests\HudInputTests.cpp user32.lib
 if errorlevel 1 exit /b 1
 hud-input.exe
+if errorlevel 1 exit /b 1
+cl /nologo /std:c++17 /EHsc /W4 /WX /permissive- /Fe:hud-ownership.exe tests\HudOwnershipTests.cpp user32.lib advapi32.lib shell32.lib ole32.lib
+if errorlevel 1 exit /b 1
+hud-ownership.exe
+$elevationCommand
 exit /b %errorlevel%
 "@ | Set-Content -Path (Join-Path $buildDirectory 'run.cmd') -Encoding ascii
     Push-Location $buildDirectory

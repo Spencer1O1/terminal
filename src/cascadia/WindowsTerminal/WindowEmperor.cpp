@@ -243,19 +243,6 @@ AppHost* WindowEmperor::GetWindowByName(std::wstring_view name) const noexcept
     return nullptr;
 }
 
-AppHost* WindowEmperor::GetHudWindow() const noexcept
-{
-    _assertIsMainThread();
-    for (const auto& window : _windows)
-    {
-        if (window->Logic().IsHudWindow())
-        {
-            return window.get();
-        }
-    }
-    return nullptr;
-}
-
 void WindowEmperor::CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs args)
 {
     _assertIsMainThread();
@@ -276,8 +263,36 @@ void WindowEmperor::CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs args
         args.Id(newId + 1);
     }
 
+    const auto wantsHud = args.WindowName() == L"_hud";
+    if (wantsHud && (_forwardHudRequest(::Microsoft::Terminal::Hud::Request::Activate) || !_hudOwnership.TryAcquire()))
+    {
+        return;
+    }
+    // Do not retain an unpublished reservation if construction throws.
+    const auto reservationGuard = wil::scope_exit([&] {
+        if (wantsHud && !_hudOwnership.Window())
+        {
+            _hudOwnership.Release();
+        }
+    });
     auto host = std::make_shared<AppHost>(this, _app.Logic(), std::move(args));
-    host->Initialize();
+    if (wantsHud)
+    {
+        if (!host->Logic().IsHudWindow() || !ClaimHudOwnership(*host))
+        {
+            _hudOwnership.Release();
+            host->Logic().HudModeEnabled(false);
+        }
+    }
+    try
+    {
+        host->Initialize();
+    }
+    catch (...)
+    {
+        ReleaseHudOwnership(*host);
+        throw;
+    }
 
     _windowCount += 1;
     _windows.emplace_back(std::move(host));
@@ -332,7 +347,9 @@ void WindowEmperor::HandleCommandlineArgs(int nCmdShow)
 {
     std::wstring windowClassName;
     windowClassName.reserve(64); // "Windows Terminal Preview Admin 0123456789012345 0123456789012345"
-#if defined(WT_BRANDING_RELEASE)
+#if defined(WT_BRANDING_HUD)
+    windowClassName.append(L"Windows Terminal HUD");
+#elif defined(WT_BRANDING_RELEASE)
     windowClassName.append(L"Windows Terminal");
 #elif defined(WT_BRANDING_PREVIEW)
     windowClassName.append(L"Windows Terminal Preview");
@@ -899,6 +916,19 @@ safe_void_coroutine WindowEmperor::_showMessageBox(winrt::hstring message, bool 
 
 LRESULT WindowEmperor::_messageHandler(HWND window, UINT const message, WPARAM const wParam, LPARAM const lParam) noexcept
 {
+    if (message == _hudOwnership.Message())
+    {
+        if (lParam == 0 && ::Microsoft::Terminal::Hud::Ownership::IsRequest(wParam))
+        {
+            try
+            {
+                _handleHudRequest(static_cast<::Microsoft::Terminal::Hud::Request>(wParam));
+            }
+            CATCH_LOG();
+        }
+        return 0;
+    }
+
     try
     {
         switch (message)
@@ -1035,6 +1065,11 @@ LRESULT WindowEmperor::_messageHandler(HWND window, UINT const message, WPARAM c
                 const auto argv = commandlineToArgArray(handoff.args.c_str());
                 _dispatchCommandlineCommon(argv, handoff.cwd, handoff.env, handoff.show);
             }
+            return 0;
+        case WM_HUD_OWNERSHIP_CHANGED:
+            _updateHudHotkeys();
+            _drainHudRequests();
+            _checkWindowsForNotificationIcon();
             return 0;
         case WM_UPDATE_NOTIFICATION_ICON:
             _checkWindowsForNotificationIcon();
@@ -1328,16 +1363,14 @@ void WindowEmperor::_hotkeyPressed(const long hotkeyIndex)
 
     // Native window calls can pump messages and reload the hotkey collection.
     const auto hotkey = til::at(_hotkeys, hotkeyIndex);
-    if (hotkey.Action == Settings::Model::ShortcutAction::HudMode || hotkey.Action == Settings::Model::ShortcutAction::HudVisibility)
+    if (!hotkey.Registered)
     {
-        if (const auto hud = GetHudWindow())
-        {
-            winrt::TerminalApp::SummonWindowBehavior behavior;
-            behavior.ToggleHudInteraction(hotkey.Action == Settings::Model::ShortcutAction::HudMode);
-            behavior.ToggleVisibility(hotkey.Action == Settings::Model::ShortcutAction::HudVisibility);
-            behavior.ToMonitor(winrt::TerminalApp::MonitorBehavior::InPlace);
-            hud->HandleSummon(behavior);
-        }
+        return;
+    }
+    if (hotkey.Action == Settings::Model::ShortcutAction::ToggleHudMode ||
+        hotkey.Action == Settings::Model::ShortcutAction::HudMode || hotkey.Action == Settings::Model::ShortcutAction::HudVisibility)
+    {
+        RequestHudAction(hotkey.Action);
         return;
     }
     const auto& summonArgs = hotkey.SummonArgs;
@@ -1382,7 +1415,7 @@ void WindowEmperor::_hotkeyPressed(const long hotkeyIndex)
     _dispatchCommandlineCommon(argv, cwd, env, SW_SHOWDEFAULT);
 }
 
-void WindowEmperor::_registerHotKey(const int index, const winrt::Microsoft::Terminal::Control::KeyChord& hotkey) noexcept
+bool WindowEmperor::_registerHotKey(const int index, const winrt::Microsoft::Terminal::Control::KeyChord& hotkey) noexcept
 {
     const auto vkey = hotkey.Vkey();
     auto hotkeyFlags = MOD_NOREPEAT;
@@ -1396,7 +1429,9 @@ void WindowEmperor::_registerHotKey(const int index, const winrt::Microsoft::Ter
 
     // TODO GH#8888: We should display a warning of some kind if this fails.
     // This can fail if something else already bound this hotkey.
-    LOG_IF_WIN32_BOOL_FALSE(::RegisterHotKey(_window.get(), index, hotkeyFlags, vkey));
+    const auto registered = ::RegisterHotKey(_window.get(), index, hotkeyFlags, vkey);
+    LOG_IF_WIN32_BOOL_FALSE(registered);
+    return registered != FALSE;
 }
 
 // Method Description:
@@ -1418,7 +1453,10 @@ void WindowEmperor::_setupGlobalHotkeys()
     // (Additionally we want to remove hotkeys that were removed from the settings.)
     for (auto i = 0, count = gsl::narrow_cast<int>(_hotkeys.size()); i < count; ++i)
     {
-        _unregisterHotKey(i);
+        if (til::at(_hotkeys, i).Registered)
+        {
+            _unregisterHotKey(i);
+        }
     }
 
     _hotkeys.clear();
@@ -1429,11 +1467,41 @@ void WindowEmperor::_setupGlobalHotkeys()
         const auto action = cmd.ActionAndArgs();
         const auto kind = action.Action();
         auto summonArgs = action.Args().try_as<Settings::Model::GlobalSummonArgs>();
-        if (summonArgs || kind == Settings::Model::ShortcutAction::HudMode || kind == Settings::Model::ShortcutAction::HudVisibility)
+        if (summonArgs || kind == Settings::Model::ShortcutAction::ToggleHudMode || kind == Settings::Model::ShortcutAction::HudMode || kind == Settings::Model::ShortcutAction::HudVisibility)
         {
             const auto index = gsl::narrow_cast<int>(_hotkeys.size());
-            _registerHotKey(index, keyChord);
-            _hotkeys.push_back({ kind, std::move(summonArgs) });
+            const auto hudAction = kind == Settings::Model::ShortcutAction::ToggleHudMode || kind == Settings::Model::ShortcutAction::HudMode || kind == Settings::Model::ShortcutAction::HudVisibility;
+            const auto registered = !hudAction && _registerHotKey(index, keyChord);
+            _hotkeys.push_back({ kind, std::move(summonArgs), keyChord, registered });
+        }
+    }
+    _updateHudHotkeys();
+}
+
+void WindowEmperor::_updateHudHotkeys()
+{
+    const auto host = _hudHost.lock();
+    if (host && host->IsChangingHudState())
+    {
+        return;
+    }
+    const auto enabled = _hudOwnership.IsOwner() && host && host->IsInitialized();
+    for (size_t index = 0; index < _hotkeys.size(); ++index)
+    {
+        auto& hotkey = _hotkeys[index];
+        const auto kind = hotkey.Action;
+        if (kind != Settings::Model::ShortcutAction::ToggleHudMode && kind != Settings::Model::ShortcutAction::HudMode && kind != Settings::Model::ShortcutAction::HudVisibility)
+        {
+            continue;
+        }
+        if (enabled && !hotkey.Registered)
+        {
+            hotkey.Registered = _registerHotKey(gsl::narrow_cast<int>(index), hotkey.Keys);
+        }
+        else if (!enabled && hotkey.Registered)
+        {
+            _unregisterHotKey(gsl::narrow_cast<int>(index));
+            hotkey.Registered = false;
         }
     }
 }

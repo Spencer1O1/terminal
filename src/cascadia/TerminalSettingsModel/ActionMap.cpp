@@ -634,7 +634,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 // HUD and Quake actions share the global summon transport.
                 const auto action = idCmdPair->second.ActionAndArgs().Action();
                 if (action == ShortcutAction::GlobalSummon || action == ShortcutAction::QuakeMode ||
-                    action == ShortcutAction::HudMode || action == ShortcutAction::HudVisibility)
+                    action == ShortcutAction::HudMode || action == ShortcutAction::HudVisibility || action == ShortcutAction::ToggleHudMode)
                 {
                     globalHotkeys.emplace(keys, idCmdPair->second);
                 }

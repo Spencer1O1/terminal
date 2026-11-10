@@ -2611,7 +2611,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (_hudEnabled && sender == _GetFocusedTab() && !_IsTerminalTab(sender))
         {
-            ToggleHudModeRequested.raise(*this, nullptr);
+            HudActionRequested.raise(*this, winrt::Microsoft::Terminal::Settings::Model::ShortcutAction::ToggleHudMode);
         }
         if (const auto tab{ _GetTabImpl(sender) })
         {

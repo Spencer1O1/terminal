@@ -55,7 +55,7 @@ namespace SettingsModelUnitTests
         const auto warnings = map->LayerJson(json, OriginTag::User);
         VERIFY_ARE_EQUAL(0u, warnings.size());
         const auto hotkeys = map->GlobalHotkeys();
-        VERIFY_ARE_EQUAL(3u, hotkeys.Size());
+        VERIFY_ARE_EQUAL(4u, hotkeys.Size());
         VERIFY_ARE_EQUAL(4u, map->KeyBindings().Size());
         const auto modeKey = KeyChord{ winrt::Windows::System::VirtualKeyModifiers::Windows | winrt::Windows::System::VirtualKeyModifiers::Control, 0, 41 };
         VERIFY_ARE_EQUAL(ShortcutAction::ToggleHudMode, map->GetActionByKeyChord(modeKey).ActionAndArgs().Action());
