@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(WindowsTerminalBranding)'=='HUD' and ('$(ConfigurationType)'=='Application' or '$(ConfigurationType)'=='DynamicLibrary')">
-    <ResourceCompile Include="$(OpenConsoleDir)build\resources\HudVersion.rc" />
+    <ResourceCompile Include="$(MSBuildThisFileDirectory)..\resources\HudVersion.rc" />
   </ItemGroup>
 
   <ItemDefinitionGroup>
