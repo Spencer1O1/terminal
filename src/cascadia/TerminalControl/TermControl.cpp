@@ -965,7 +965,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         SwapChainPanel().Margin(newMargin);
 
         // Apply settings for scrollbar
-        if (settings.ScrollState() == ScrollbarState::Hidden)
+        if (_hudEnabled || settings.ScrollState() == ScrollbarState::Hidden)
         {
             // In the scenario where the user has turned off the OS setting to automatically hide scrollbars, the
             // Terminal scrollbar would still be visible; so, we need to set the control's visibility accordingly to
@@ -996,7 +996,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             });
         }
 
-        _showMarksInScrollbar = settings.ShowMarks();
+        _showMarksInScrollbar = !_hudEnabled && settings.ShowMarks();
         // Hide all scrollbar marks since they might be disabled now.
         if (const auto canvas = ScrollBarCanvas())
         {
@@ -3770,11 +3770,21 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         {
             return;
         }
-        // Rebuild the brush when entering HUD mode from an acrylic profile.
-        // Do this before ApplyAppearance raises TransparencyChanged.
+        // Apply the temporary scrollbar policy even before initialization, so
+        // newly created HUD panes also start without a scrollbar. Leaving HUD
+        // reapplies the current profile settings without changing them.
+        if (modeChanged)
+        {
+            _ApplyUISettings();
+        }
         if (_initializedTerminal)
         {
-            _InitializeBackgroundBrush();
+            // Apply UI settings already rebuilt the brush on a mode change.
+            // Refresh it before ApplyAppearance raises TransparencyChanged.
+            if (!modeChanged)
+            {
+                _InitializeBackgroundBrush();
+            }
             _UpdateAppearanceFromUIThread(_focused ? _core.FocusedAppearance() : _core.UnfocusedAppearance());
         }
     }

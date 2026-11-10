@@ -74,6 +74,8 @@ HUD retains its fullscreen/focus presentation until its mode is disabled. HUD do
 HUD horizontal and vertical padding are also available in Settings > Appearance.
 They add spacing around the entire HUD content, including split panes, in
 DPI-aware device-independent pixels. Both default to 0 and accept 0–1000.
+HUD hides scrollbars and scrollbar marks in every pane, including after settings
+reload. Leaving HUD restores the current profile scrollbar setting.
 Existing profile padding is retained. Leaving HUD restores the ordinary content
 margin; changing either value reloads the current HUD without restarting sessions.
 For example:
