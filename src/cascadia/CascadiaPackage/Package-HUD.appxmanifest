@@ -20,7 +20,7 @@
   <Identity
     Name="Spencer1O1.WindowsTerminalHUD"
     Publisher="CN=Spencer1O1"
-    Version="1.25.2733.3" />
+    Version="1.25.2733.4" />
 
   <Properties>
     <DisplayName>Windows Terminal HUD</DisplayName>
@@ -109,10 +109,10 @@
         </uap3:Extension>
         <com:Extension Category="windows.comInterface">
             <com:ComInterface>
-                <com:ProxyStub Id="DEC4804D-56D1-4F73-9FBE-6828E7C85C56" DisplayName="OpenConsoleHandoffProxy" Path="OpenConsoleProxy.dll"/>
-                <com:Interface Id="E686C757-9A35-4A1C-B3CE-0BCC8B5C69F4" ProxyStubClsid="DEC4804D-56D1-4F73-9FBE-6828E7C85C56"/>
-                <com:Interface Id="6F23DA90-15C5-4203-9DB0-64E73F1B1B00" ProxyStubClsid="DEC4804D-56D1-4F73-9FBE-6828E7C85C56"/> <!-- ITerminalHandoff3 -->
-                <com:Interface Id="746E6BC0-AB05-4E38-AB14-71E86763141F" ProxyStubClsid="DEC4804D-56D1-4F73-9FBE-6828E7C85C56"/>
+                <com:ProxyStub Id="2AA86399-E084-4E65-BDA2-D8ECA6D7143A" DisplayName="OpenConsoleHandoffProxy" Path="OpenConsoleProxy.dll"/>
+                <com:Interface Id="E686C757-9A35-4A1C-B3CE-0BCC8B5C69F4" ProxyStubClsid="2AA86399-E084-4E65-BDA2-D8ECA6D7143A"/>
+                <com:Interface Id="6F23DA90-15C5-4203-9DB0-64E73F1B1B00" ProxyStubClsid="2AA86399-E084-4E65-BDA2-D8ECA6D7143A"/> <!-- ITerminalHandoff3 -->
+                <com:Interface Id="746E6BC0-AB05-4E38-AB14-71E86763141F" ProxyStubClsid="2AA86399-E084-4E65-BDA2-D8ECA6D7143A"/>
             </com:ComInterface>
         </com:Extension>
         <com:Extension Category="windows.comServer">

@@ -230,3 +230,8 @@ to produce a clean portable runtime for desktop regression. Never package the
 personal preview or its copied settings. Record the source revision, SDK/build
 versions, checksums, test evidence, and remaining hardware/installation checks
 alongside the candidate. Tagging/publishing follows candidate validation.
+
+For a trusted HUD MSIX, run `build/scripts/Test-WindowsTerminalPackage.ps1`
+with `-ValidateComProxy` in a matching-architecture PowerShell process. This
+also loads the package's COM proxy DLL and verifies that its factory matches
+the manifest registration, without registering the DLL or changing Windows settings.
