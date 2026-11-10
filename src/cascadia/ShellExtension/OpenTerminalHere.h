@@ -25,7 +25,9 @@ Author(s):
 using namespace Microsoft::WRL;
 
 struct
-#if defined(WT_BRANDING_RELEASE)
+#if defined(WT_BRANDING_HUD)
+    __declspec(uuid("A8204298-2AFC-4BF4-A333-72ED6F6B89D6"))
+#elif defined(WT_BRANDING_RELEASE)
     __declspec(uuid("9f156763-7844-4dc4-b2b1-901f640f5155"))
 #elif defined(WT_BRANDING_PREVIEW)
     __declspec(uuid("02db545a-3e20-46de-83a5-1329b1e88b6b"))

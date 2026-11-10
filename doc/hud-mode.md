@@ -151,3 +151,46 @@ Build a release from the package project/clean build layout, not the personal
 preview directory: previews contain copied user settings and local test data.
 The reviewed source and native checks do not replace installer/resource,
 multimonitor, signing and default-host validation before distribution.
+
+## Fork releases
+
+`stable` tracks the upstream stable tag. HUD implementation/review commits live
+on `feature/hudmode-stable`; `release/hud-1.25` merges that branch and carries the
+fork's packaging identity. No public PR is required for this local workflow.
+
+Build the fork package from a native Visual Studio developer shell after
+restoring the two package manifests described above. Visual Studio's packaging
+target also needs a .NET SDK discoverable by MSBuild:
+
+```powershell
+msbuild OpenConsole.slnx /t:Terminal\CascadiaPackage `
+  /p:Configuration=Release /p:Platform=x64 /p:WindowsTerminalBranding=HUD `
+  /p:AppxPackageSigningEnabled=false /p:AppxBundle=Never `
+  /p:AppxSymbolPackageEnabled=false /m
+```
+
+The first fork package version is **1.25.2733.1**, with display name
+**Windows Terminal HUD**, package name `Spencer1O1.WindowsTerminalHUD`, and
+publisher `CN=Spencer1O1`. The `HUD` branding uses upstream's stable feature flags,
+keeps the normal terminal icon, includes fonts/profile icons and the fork's JSON
+schema, and registers separate terminal/console/Explorer COM classes. Stock
+Terminal and upstream Dev builds retain their identities. The command alias is
+`wthud.exe`; changing the system's default terminal is a separate installation step.
+On first installed launch, settings are copied from stock stable Terminal when
+available, using upstream's existing first-run migration. Subsequent settings
+are isolated in the fork's own package data. HUD does not use Microsoft's Store
+update checker; feedback opens this fork's issue tracker.
+
+An unsigned MSIX is a build artifact, not an installable signed release. Sign
+with a certificate whose subject matches the manifest publisher. A local test
+certificate must be trusted explicitly before installing; keep its private key
+out of the repository and distribution. Ship the public certificate only when
+it is needed for a personal test installation. Public distribution requires an
+appropriate signing/trust strategy.
+
+Validate the MSIX with `build/scripts/Test-WindowsTerminalPackage.ps1`, inspect
+its manifest/resources, then use `build/scripts/New-UnpackagedTerminalDistribution.ps1`
+to produce a clean portable runtime for desktop regression. Never package the
+personal preview or its copied settings. Record the source revision, SDK/build
+versions, checksums, test evidence, and remaining hardware/installation checks
+alongside the candidate. Tagging/publishing follows candidate validation.

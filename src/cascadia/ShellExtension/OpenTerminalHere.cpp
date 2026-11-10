@@ -90,7 +90,9 @@ HRESULT OpenTerminalHere::GetTitle(IShellItemArray* /*psiItemArray*/,
     // Change the string we return depending on if we're running from the dev
     // build package or not.
     const auto resource =
-#if defined(WT_BRANDING_RELEASE)
+#if defined(WT_BRANDING_HUD)
+        RS_(L"ShellExtension_OpenInTerminalMenuItem_HUD");
+#elif defined(WT_BRANDING_RELEASE)
         RS_(L"ShellExtension_OpenInTerminalMenuItem");
 #elif defined(WT_BRANDING_PREVIEW)
         RS_(L"ShellExtension_OpenInTerminalMenuItem_Preview");

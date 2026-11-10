@@ -28,7 +28,9 @@ namespace winrt::TerminalApp::implementation
     AboutDialog::AboutDialog()
     {
         InitializeComponent();
+#if !defined(WT_BRANDING_HUD)
         _queueUpdateCheck();
+#endif
     }
 
     winrt::hstring AboutDialog::ApplicationDisplayName()
@@ -43,7 +45,9 @@ namespace winrt::TerminalApp::implementation
 
     void AboutDialog::_SendFeedbackOnClick(const IInspectable& /*sender*/, const Windows::UI::Xaml::Controls::ContentDialogButtonClickEventArgs& /*eventArgs*/)
     {
-#if defined(WT_BRANDING_RELEASE)
+#if defined(WT_BRANDING_HUD)
+        ShellExecute(nullptr, nullptr, L"https://github.com/Spencer1O1/terminal/issues", nullptr, nullptr, SW_SHOW);
+#elif defined(WT_BRANDING_RELEASE)
         ShellExecute(nullptr, nullptr, L"https://go.microsoft.com/fwlink/?linkid=2125419", nullptr, nullptr, SW_SHOW);
 #else
         ShellExecute(nullptr, nullptr, L"https://go.microsoft.com/fwlink/?linkid=2204904", nullptr, nullptr, SW_SHOW);

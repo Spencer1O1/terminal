@@ -32,7 +32,7 @@
 
     <_WTBrandingName Condition="'$(WindowsTerminalBranding)'=='Canary'">Canary</_WTBrandingName>
     <_WTBrandingName Condition="'$(WindowsTerminalBranding)'=='Preview'">Preview</_WTBrandingName>
-    <_WTBrandingName Condition="'$(WindowsTerminalBranding)'=='Release'">Release</_WTBrandingName>
+    <_WTBrandingName Condition="'$(WindowsTerminalBranding)'=='Release' or '$(WindowsTerminalBranding)'=='HUD'">Release</_WTBrandingName>
     <_WTBrandingName Condition="'$(_WTBrandingName)'==''">Dev</_WTBrandingName>
   </PropertyGroup>
 

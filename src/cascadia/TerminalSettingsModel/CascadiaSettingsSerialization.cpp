@@ -1236,7 +1236,7 @@ try
     bool releaseSettingExists = false;
     if (firstTimeSetup && !IsPortableMode())
     {
-#if defined(WT_BRANDING_PREVIEW) || defined(WT_BRANDING_CANARY)
+#if defined(WT_BRANDING_PREVIEW) || defined(WT_BRANDING_CANARY) || defined(WT_BRANDING_HUD)
         {
             try
             {
@@ -1669,7 +1669,13 @@ Json::Value CascadiaSettings::ToJson() const
     auto json{ _globals->ToJson() };
     json["$help"] = "https://aka.ms/terminal-documentation";
     json["$schema"] =
-#if defined(WT_BRANDING_RELEASE)
+#if defined(WT_BRANDING_HUD)
+        []() {
+            std::filesystem::path schema{ wil::GetModuleFileNameW<std::wstring>(nullptr) };
+            schema.replace_filename(L"profiles.schema.json");
+            return winrt::to_string(winrt::Windows::Foundation::Uri{ L"file:///" + schema.generic_wstring() }.AbsoluteUri());
+        }()
+#elif defined(WT_BRANDING_RELEASE)
         "https://aka.ms/terminal-profiles-schema"
 #elif defined(WT_BRANDING_PREVIEW)
         "https://aka.ms/terminal-profiles-schema-preview"

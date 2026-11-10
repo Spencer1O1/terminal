@@ -6,7 +6,7 @@ Param(
     $Path,
 
     [Parameter(HelpMessage="Path to Windows Kit")]
-    [ValidateScript({Test-Path $_ -Type Leaf})]
+    [ValidateScript({Test-Path $_ -Type Container})]
     [string]
     $WindowsKitPath = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0"
 )
@@ -98,12 +98,36 @@ Try {
     }
 
     If (($null -eq (Get-Item "$AppxPackageRootPath\wtd.exe" -EA:Ignore)) -And
-        ($null -eq (Get-Item "$AppxPackageRootPath\wt.exe" -EA:Ignore))) {
-        Throw "Failed to find wt.exe/wtd.exe -- check the WAP packaging project"
+        ($null -eq (Get-Item "$AppxPackageRootPath\wt.exe" -EA:Ignore)) -And
+        ($null -eq (Get-Item "$AppxPackageRootPath\wthud.exe" -EA:Ignore))) {
+        Throw "Failed to find wt.exe/wtd.exe/wthud.exe -- check the WAP packaging project"
     }
 
     If ($null -eq (Get-Item "$AppxPackageRootPath\OpenConsole.exe" -EA:Ignore)) {
         Throw "Failed to find OpenConsole.exe -- check the WAP packaging project"
+    }
+
+    If ($Manifest.Package.Identity.Name -eq 'Spencer1O1.WindowsTerminalHUD') {
+        If ($Manifest.Package.Identity.Publisher -ne 'CN=Spencer1O1') {
+            Throw 'HUD package publisher does not match the fork identity.'
+        }
+        ForEach ($file in @('wthud.exe', 'profiles.schema.json', 'CascadiaCode.ttf', 'CascadiaCodeItalic.ttf', 'CascadiaMono.ttf', 'CascadiaMonoItalic.ttf', 'NOTICE.html')) {
+            If (-not (Test-Path -LiteralPath (Join-Path $AppxPackageRootPath $file) -PathType Leaf)) {
+                Throw "HUD package is missing $file"
+            }
+        }
+        ForEach ($folder in @('ProfileIcons', 'ProfileGeneratorIcons')) {
+            If (-not (Get-ChildItem -LiteralPath (Join-Path $AppxPackageRootPath $folder) -File -Recurse)) {
+                Throw "HUD package has no resources in $folder"
+            }
+        }
+        $null = Get-Content -LiteralPath (Join-Path $AppxPackageRootPath 'profiles.schema.json') -Raw | ConvertFrom-Json
+        ForEach ($binary in @('WindowsTerminal.exe', 'TerminalApp.dll', 'OpenConsole.exe')) {
+            $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $AppxPackageRootPath $binary))
+            If ($info.ProductVersion -ne $Manifest.Package.Identity.Version) {
+                Throw "HUD binary version does not match its package: $binary ($($info.ProductVersion))"
+            }
+        }
     }
 
 } Finally {

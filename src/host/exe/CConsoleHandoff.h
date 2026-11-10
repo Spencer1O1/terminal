@@ -18,7 +18,9 @@ Author(s):
 
 #include "IConsoleHandoff.h"
 
-#if defined(WT_BRANDING_RELEASE)
+#if defined(WT_BRANDING_HUD)
+#define __CLSID_CConsoleHandoff "752959EF-4F99-4F8A-9A03-D50AC917917E"
+#elif defined(WT_BRANDING_RELEASE)
 #define __CLSID_CConsoleHandoff "2EACA947-7F5F-4CFA-BA87-8F7FBEEFBE69"
 #elif defined(WT_BRANDING_PREVIEW)
 #define __CLSID_CConsoleHandoff "06EC847C-C0A5-46B8-92CB-7C92F6E35CD5"

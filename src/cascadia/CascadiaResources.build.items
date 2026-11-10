@@ -11,8 +11,12 @@
       <DeploymentContent>true</DeploymentContent>
       <Link>Images\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
+    <Content Include="$(OpenConsoleDir)doc\cascadia\profiles.schema.json" Condition="'$(WindowsTerminalBranding)'=='HUD'">
+      <DeploymentContent>true</DeploymentContent>
+      <Link>profiles.schema.json</Link>
+    </Content>
     <!-- Fonts -->
-    <Content Include="$(OpenConsoleDir)res\fonts\*.ttf" Condition="'$(WindowsTerminalOfficialBuild)'=='true'">
+    <Content Include="$(OpenConsoleDir)res\fonts\*.ttf" Condition="'$(WindowsTerminalOfficialBuild)'=='true' or '$(WindowsTerminalBranding)'=='HUD'">
       <DeploymentContent>true</DeploymentContent>
       <Link>%(FileName)%(Extension)</Link>
     </Content>
