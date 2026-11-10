@@ -40,8 +40,9 @@ toggle needs Terminal focus; activate the HUD first. Escape passes through.
 
 There is one HUD per app instance. If another window is already the HUD, the
 mode toggle activates that window. Global HUD actions do nothing when HUD
-mode is disabled. Explicit `WindowsTerminal.exe -w _hud` starts a HUD on the
-primary monitor. Ordinary command-line window reuse excludes HUD windows;
+mode is disabled. Explicit `WindowsTerminal.exe -w _hud` creates a HUD on the
+primary monitor when that window name is unused. Reusing an existing name
+retains that window's current mode. Ordinary command-line window reuse excludes HUD windows;
 explicit names and IDs can still target them. Renaming does not change mode.
 Generic `globalSummon` activation of the HUD retains ordinary summon semantics.
 
