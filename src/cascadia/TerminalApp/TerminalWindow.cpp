@@ -1180,7 +1180,7 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalWindow::HudModeEnabled(const bool enabled)
     {
-        if (enabled && _root && !_root->CanEnterHudMode())
+        if (enabled && (IsQuakeWindow() || (_root && !_root->CanEnterHudMode())))
         {
             return;
         }

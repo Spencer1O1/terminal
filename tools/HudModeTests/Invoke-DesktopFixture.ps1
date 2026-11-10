@@ -8,8 +8,10 @@ param(
     [switch]$ConvertExisting
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'DesktopIsolation.ps1')
+Assert-HudDesktopIsolation
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing,UIAutomationClient,UIAutomationTypes
-Add-Type -TypeDefinition @'
+Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing.Primitives,System.ComponentModel.Primitives,System.Collections -TypeDefinition @'
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -36,17 +38,30 @@ public static class HudProbe {
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
     [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
     [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr window,uint command);
+    public static bool IsAbove(IntPtr upper,IntPtr lower) {
+        var seen=new HashSet<IntPtr>();
+        for (var window=upper;window!=IntPtr.Zero && seen.Add(window);window=GetWindow(window,2)) {
+            if (window==lower) return true;
+        }
+        return false;
+    }
     public static IntPtr[] Windows(int process) {
         var result=new List<IntPtr>();
         EnumWindows((window,data)=> { uint owner; GetWindowThreadProcessId(window,out owner); if (owner==process) result.Add(window); return true; }, IntPtr.Zero);
         return result.ToArray();
     }
     public static void Chord(byte function) {
-        // Dedicated fixture bindings: Ctrl+Alt+F11/F12. Never sends Windows shortcuts.
+        // Dedicated fixture bindings: Ctrl+Alt+F13/F14. Never sends Windows shortcuts.
         keybd_event(0x11,0,0,UIntPtr.Zero); keybd_event(0x12,0,0,UIntPtr.Zero);
         keybd_event(function,0,0,UIntPtr.Zero); keybd_event(function,0,2,UIntPtr.Zero);
         keybd_event(0x12,0,2,UIntPtr.Zero); keybd_event(0x11,0,2,UIntPtr.Zero);
     }
+
+}
+public class HudProbeApplication : System.Windows.Forms.Form {
+    public bool ActivateOnShow { get; set; }
+    protected override bool ShowWithoutActivation { get { return !ActivateOnShow; } }
 }
 '@
 [void][HudProbe]::SetThreadDpiAwarenessContext([IntPtr]::new(-4))
@@ -59,21 +74,19 @@ function Assert-Probe([bool]$Condition, [string]$Message) {
     Write-Output "PASS: $Message"
 }
 function Invoke-FixtureChord([byte]$Key) {
+    Assert-HudDesktopIsolation -OwnedProcessIds (@($process.Id)+@($script:additionalProcesses | ForEach-Object Id))
     $foreground = [HudProbe]::GetForegroundWindow()
-    if ($foreground -ne $target -and $foreground -ne $background.Handle) {
+    $owner=0u
+    [void][HudProbe]::GetWindowThreadProcessId($foreground,[ref]$owner)
+    $owned=@($process.Id)+@($script:additionalProcesses | ForEach-Object Id)
+    if ($foreground -ne $background.Handle -and $owner -notin $owned) {
         throw 'Desktop focus moved outside the owned fixture; stopping before input injection.'
     }
     [HudProbe]::Chord($Key)
 }
 function Invoke-ModeToggle {
-    if ([HudProbe]::GetForegroundWindow() -ne $target) { throw 'Mode toggle requires the owned Terminal to be focused.' }
-    $key=[byte][HudProbe]::MapVirtualKeyW(41,3)
-    [HudProbe]::keybd_event(0x11,0,0,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event(0x5B,0,0,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event($key,41,0,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event($key,41,2,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event(0x5B,0,2,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event(0x11,0,2,[UIntPtr]::Zero)
+    # Use a dedicated global action binding; never inject Windows-key chords.
+    Invoke-FixtureChord 0x7E # Ctrl+Alt+F15
 }
 function Assert-BackgroundOpacity([double]$Opacity, [int]$X=($screen.Left+[int]($screen.Width/2)), [int]$Y=($screen.Top+[int]($screen.Height/2)), [string]$Context="Active") {
     $probe=[System.Drawing.Bitmap]::new(1,1)
@@ -82,9 +95,13 @@ function Assert-BackgroundOpacity([double]$Opacity, [int]$X=($screen.Left+[int](
         $paint.CopyFromScreen($X,$Y,0,0,$probe.Size)
         $pixel=$probe.GetPixel(0,0)
         $factor=1-$Opacity/100
-        Assert-Probe ([Math]::Abs($pixel.R-40*$factor) -le 3 -and [Math]::Abs($pixel.G-160*$factor) -le 3 -and [Math]::Abs($pixel.B-220*$factor) -le 3) "$Context background matches $Opacity percent opacity"
+        Write-Output ("Opacity probe ({0}): pixel={1},{2},{3}; state={4}" -f $Context,$pixel.R,$pixel.G,$pixel.B,((Read-State $target) | ConvertTo-Json -Compress))
+        $matches=[Math]::Abs($pixel.R-40*$factor) -le 3 -and [Math]::Abs($pixel.G-160*$factor) -le 3 -and [Math]::Abs($pixel.B-220*$factor) -le 3
+        Assert-Probe $matches "$Context background matches $Opacity percent opacity"
     } finally { $paint.Dispose(); $probe.Dispose() }
 }
+. (Join-Path $PSScriptRoot 'WindowOrderProbes.ps1')
+. (Join-Path $PSScriptRoot 'MultiInstanceProbe.ps1')
 function Read-State([IntPtr]$Window) {
     $rect = [HudProbe+Rect]::new()
     [void][HudProbe]::GetWindowRect($Window,[ref]$rect)
@@ -112,13 +129,15 @@ $fixtureSettings = @{
     keybindings=@(
         @{keys='win+sc(41)';command='unbound'},
         @{keys='win+shift+sc(41)';command='unbound'},
+        @{keys='win+ctrl+sc(41)';command='unbound'},
         @{keys='alt+sc(41)';command='unbound'},
         @{keys='ctrl+alt+f5';command=@{action='renameWindow';name='review-smoke'}},
         @{keys='ctrl+alt+f7';command='toggleFullscreen'},
         @{keys='ctrl+alt+f8';command=@{action='renameWindow';name='_quake'}},
         @{keys='ctrl+alt+f6';command=@{action='globalSummon';name=$WindowName;toggleVisibility=$false;dropdownDuration=0;monitor='any'}},
-        @{keys='ctrl+alt+f11';id='Terminal.HudMode'},
-        @{keys='ctrl+alt+f12';id='Terminal.HudVisibility'}
+        @{keys='ctrl+alt+f13';id='Terminal.HudMode'},
+        @{keys='ctrl+alt+f14';id='Terminal.HudVisibility'},
+        @{keys='ctrl+alt+f15';id='Terminal.ToggleHudMode'}
     )
 }
 $fixtureSettings | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $settingsPath -Encoding utf8NoBOM
@@ -135,8 +154,9 @@ $background.Show()
 [void][HudProbe]::SetForegroundWindow($background.Handle)
 Wait-Ui
 $process=$null
+$script:additionalProcesses=@()
 try {
-    foreach ($key in @(0x74,0x75,0x76,0x77,0x7A,0x7B)) {
+    foreach ($key in @(0x74,0x75,0x76,0x77,0x7C,0x7D,0x7E)) {
         if (-not [HudProbe]::RegisterHotKey([IntPtr]::Zero,$key,0x4003,$key)) { throw "Fixture shortcut is already occupied: $key" }
         [void][HudProbe]::UnregisterHotKey([IntPtr]::Zero,$key)
     }
@@ -195,7 +215,14 @@ try {
     Invoke-FixtureChord 0x75 # Generic globalSummon must activate, never toggle.
     Wait-Ui 400
     Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target -and ((Read-State $target).exstyle -band 0x20) -eq 0) 'generic summon of HUD retains Active input'
-    Invoke-FixtureChord 0x7A # F11
+    Assert-NewWindowBelowHud $false 'Active'
+    Assert-NewWindowBelowHud $true 'Active-to-Passive'
+    Invoke-FixtureChord 0x7C
+    Wait-Ui 400
+    Assert-NewExplorerBelowHud 'Active-to-Passive'
+    Invoke-FixtureChord 0x7C
+    Wait-Ui 400
+    Invoke-FixtureChord 0x7C # F13
     Wait-Ui 800
     $state=Read-State $target
     Assert-Probe ($state.visible -and ($state.exstyle -band 0x80020) -eq 0x80020) 'interaction shortcut made HUD Passive'
@@ -217,30 +244,33 @@ try {
         Write-Output "Passive opaque-white text samples: $white"
         Assert-Probe ($white -gt 1000) 'Passive text remains opaque and visible'
     } finally { $graphics.Dispose(); $bitmap.Dispose() }
+    Assert-NewWindowBelowHud $true 'Passive'
+    Assert-NewExplorerBelowHud 'Passive'
     $clickX=$screen.Left+[int]($screen.Width/2)
     $clickY=$screen.Top+[int]($screen.Height/2)
     $point=([long]$clickY -shl 32) -bor [long]$clickX
     Assert-Probe ([HudProbe]::WindowFromPoint($point) -eq $background.Handle) 'native hit-test routes Passive pointer to owned background'
     [void][HudProbe]::SetCursorPos($clickX,$clickY)
     if ([HudProbe]::WindowFromPoint($point) -ne $background.Handle) { throw 'Owned sink moved before click; aborting injection.' }
+    Assert-HudDesktopIsolation -OwnedProcessIds (@($process.Id)+@($script:additionalProcesses | ForEach-Object Id))
     [HudProbe]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
     [HudProbe]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
     Wait-Ui 200
     Assert-Probe ($script:fixtureClicks -eq 1) 'one physical click reached owned background through Passive HUD'
-    Invoke-FixtureChord 0x7B # F12
+    Invoke-FixtureChord 0x7D # F14
     Wait-Ui 500
     Assert-Probe (-not [HudProbe]::IsWindowVisible($target)) 'visibility shortcut hid Passive'
-    Invoke-FixtureChord 0x7B
+    Invoke-FixtureChord 0x7D
     Wait-Ui 500
     $state=Read-State $target
     Assert-Probe ($state.visible -and ($state.exstyle -band 0x20) -ne 0 -and [HudProbe]::GetForegroundWindow() -eq $background.Handle) 'visibility shortcut restored Passive without activation'
-    Invoke-FixtureChord 0x7A
+    Invoke-FixtureChord 0x7C
     Wait-Ui 500
     Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'interaction shortcut restored Active focus'
-    Invoke-FixtureChord 0x7B
+    Invoke-FixtureChord 0x7D
     Wait-Ui 500
     Assert-Probe (-not [HudProbe]::IsWindowVisible($target)) 'visibility shortcut hid Active'
-    Invoke-FixtureChord 0x7B
+    Invoke-FixtureChord 0x7D
     Wait-Ui 500
     Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'visibility shortcut restored Active focus'
     $updatedOpacity=if ($ActiveOpacity -eq 35) { 65 } else { 35 }
@@ -249,10 +279,10 @@ try {
     $updatedSettings | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $settingsPath -Encoding utf8NoBOM
     Wait-Ui 1500
     Assert-BackgroundOpacity $updatedOpacity
-    Invoke-FixtureChord 0x7A
+    Invoke-FixtureChord 0x7C
     Wait-Ui 600
     Assert-Probe ((Read-State $target).exstyle -band 0x20) 'opacity reload preserved Passive input behavior'
-    Invoke-FixtureChord 0x7A
+    Invoke-FixtureChord 0x7C
     Wait-Ui 600
     Assert-BackgroundOpacity $updatedOpacity
     $shell=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
@@ -279,8 +309,26 @@ try {
     }
     Assert-BackgroundOpacity 65 ([int](($normalAfter.rect.Left+$normalAfter.rect.Right)/2)) ($normalAfter.rect.Bottom-80) 'Normal'
     Assert-Probe ($null -ne (Get-Process -Id $shell.pid -ErrorAction SilentlyContinue)) 'same shell survived leaving HUD mode'
-    Invoke-FixtureChord 0x7A
-    Invoke-FixtureChord 0x7B
+    Assert-SingleHudAcrossInstances
+    [void][HudProbe]::SetForegroundWindow($background.Handle)
+    Wait-Ui 200
+    Invoke-ModeToggle
+    Wait-Ui 300
+    Assert-Probe (((Read-State $target).exstyle -band 0x28) -eq 0 -and [HudProbe]::GetForegroundWindow() -eq $background.Handle) 'mode toggle did nothing with no HUD and another app focused'
+    [void][HudProbe]::SetForegroundWindow($target)
+    foreach ($prior in @('Passive','HiddenPassive','HiddenActive')) {
+        Invoke-ModeToggle
+        Wait-Ui 300
+        if ($prior -ne 'HiddenActive') { Invoke-FixtureChord 0x7C;Wait-Ui 300 }
+        if ($prior -ne 'Passive') { Invoke-FixtureChord 0x7D;Wait-Ui 300 }
+        Invoke-ModeToggle
+        Wait-Ui 500
+        $ordinary=Read-State $target
+        Assert-Probe ($ordinary.visible -and ($ordinary.exstyle -band 0x8000028) -eq 0 -and [HudProbe]::GetForegroundWindow() -eq $target) "global mode toggle exited $prior and restored the ordinary focused window"
+        Assert-Probe ($null -ne (Get-Process -Id $shell.pid -ErrorAction SilentlyContinue)) "$prior mode exit preserved the shell"
+    }
+    Invoke-FixtureChord 0x7C
+    Invoke-FixtureChord 0x7D
     Wait-Ui 300
     $withoutHud=Read-State $target
     Assert-Probe (($withoutHud.exstyle -band 0x28) -eq 0 -and $withoutHud.rect.Equals($normalAfter.rect)) 'global HUD actions left an ordinary window unchanged'
@@ -355,10 +403,10 @@ try {
     Assert-BackgroundOpacity 47
     $afterSettings=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
     Assert-Probe ($afterSettings.pid -eq $shell.pid) 'HUD return from Settings reused the existing terminal session'
-    Invoke-FixtureChord 0x7A
+    Invoke-FixtureChord 0x7C
     Wait-Ui 400
     Assert-BackgroundOpacity 0 -Context 'Passive terminal after Settings'
-    Invoke-FixtureChord 0x7A
+    Invoke-FixtureChord 0x7C
     Wait-Ui 300
     Invoke-ModeToggle
     Wait-Ui 300

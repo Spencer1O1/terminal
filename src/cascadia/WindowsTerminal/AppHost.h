@@ -22,6 +22,9 @@ public:
     int64_t GetLastActivatedTime() const noexcept;
     winrt::Windows::Foundation::IAsyncOperation<winrt::guid> GetVirtualDesktopId();
     IslandWindow* GetWindow() const noexcept;
+    bool IsInitialized() const noexcept;
+    bool IsChangingHudState() const noexcept { return _changingHudState; }
+    void ApplyHudAction(Microsoft::Terminal::Hud::Action action);
     winrt::TerminalApp::TerminalWindow Logic();
 
     bool OnDirectKeyEvent(uint32_t vkey, uint8_t scanCode, bool down);
@@ -58,12 +61,11 @@ private:
     DWORD _hudReturnFocusThread{};
     std::optional<WINDOWPLACEMENT> _hudNormalPlacement;
     void _CaptureHudPlacement();
-    void _ToggleHudModeRequested(const winrt::Windows::Foundation::IInspectable&,
-                                 const winrt::Windows::Foundation::IInspectable&);
+    void _HudActionRequested(const winrt::Windows::Foundation::IInspectable&,
+                             winrt::Microsoft::Terminal::Settings::Model::ShortcutAction action);
 
     void _RememberHudForeground();
     void _RestoreHudForeground();
-    void _ApplyHudState(Microsoft::Terminal::Hud::Action action);
     void _IsHudWindowChanged(const winrt::Windows::Foundation::IInspectable& sender,
                              const winrt::Windows::Foundation::IInspectable& args);
 
@@ -174,7 +176,7 @@ private:
         winrt::TerminalApp::TerminalWindow::IsQuakeWindowChanged_revoker IsQuakeWindowChanged;
         winrt::TerminalApp::TerminalWindow::IsHudWindowChanged_revoker IsHudWindowChanged;
         winrt::TerminalApp::TerminalWindow::SummonWindowRequested_revoker SummonWindowRequested;
-        winrt::TerminalApp::TerminalWindow::ToggleHudModeRequested_revoker ToggleHudModeRequested;
+        winrt::TerminalApp::TerminalWindow::HudActionRequested_revoker HudActionRequested;
         winrt::TerminalApp::TerminalWindow::OpenSystemMenu_revoker OpenSystemMenu;
         winrt::TerminalApp::TerminalWindow::QuitRequested_revoker QuitRequested;
         winrt::TerminalApp::TerminalWindow::ShowWindowChanged_revoker ShowWindowChanged;

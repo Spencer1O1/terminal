@@ -274,7 +274,7 @@ void AppHost::Initialize()
     _revokers.IsQuakeWindowChanged = _windowLogic.IsQuakeWindowChanged(winrt::auto_revoke, { this, &AppHost::_IsQuakeWindowChanged });
     _revokers.IsHudWindowChanged = _windowLogic.IsHudWindowChanged(winrt::auto_revoke, { this, &AppHost::_IsHudWindowChanged });
     _revokers.SummonWindowRequested = _windowLogic.SummonWindowRequested(winrt::auto_revoke, { this, &AppHost::_SummonWindowRequested });
-    _revokers.ToggleHudModeRequested = _windowLogic.ToggleHudModeRequested(winrt::auto_revoke, { this, &AppHost::_ToggleHudModeRequested });
+    _revokers.HudActionRequested = _windowLogic.HudActionRequested(winrt::auto_revoke, { this, &AppHost::_HudActionRequested });
     _revokers.OpenSystemMenu = _windowLogic.OpenSystemMenu(winrt::auto_revoke, { this, &AppHost::_OpenSystemMenu });
     _revokers.QuitRequested = _windowLogic.QuitRequested(winrt::auto_revoke, { this, &AppHost::_RequestQuitAll });
     _revokers.ShowWindowChanged = _windowLogic.ShowWindowChanged(winrt::auto_revoke, { this, &AppHost::_ShowWindowChanged });
@@ -311,11 +311,11 @@ void AppHost::Initialize()
                 using namespace Microsoft::Terminal::Hud;
                 if (show)
                 {
-                    _ApplyHudState(Action::Activate);
+                    ApplyHudAction(Action::Activate);
                 }
                 else if (_hudState.Current() != State::Hidden)
                 {
-                    _ApplyHudState(Action::ToggleVisibility);
+                    ApplyHudAction(Action::ToggleVisibility);
                 }
             }
             else
@@ -355,6 +355,7 @@ void AppHost::Close()
 
     // InputMode never outlives its native HWND, including allocator handle reuse.
     LOG_HR_IF(E_FAIL, !_hudInput.SetPassive(_window->GetHandle(), false));
+    _windowManager->ReleaseHudOwnership(*this);
     _window->Close();
 
     if (_windowLogic)
@@ -410,6 +411,11 @@ winrt::Windows::Foundation::IAsyncOperation<winrt::guid> AppHost::GetVirtualDesk
 
     _virtualDesktopId = winrt::guid{ id };
     co_return _virtualDesktopId;
+}
+
+bool AppHost::IsInitialized() const noexcept
+{
+    return _isWindowInitialized == WindowInitializedState::Initialized;
 }
 
 IslandWindow* AppHost::GetWindow() const noexcept
@@ -866,7 +872,7 @@ void AppHost::_WindowActivated(bool activated)
     {
         // Losing foreground always releases input. Do not restore foreground
         // here: another app or an OS dialog may have deliberately taken it.
-        _ApplyHudState(activated ? Microsoft::Terminal::Hud::Action::Activate : Microsoft::Terminal::Hud::Action::Deactivate);
+        ApplyHudAction(activated ? Microsoft::Terminal::Hud::Action::Activate : Microsoft::Terminal::Hud::Action::Deactivate);
     }
 
     _windowLogic.WindowActivated(activated);
@@ -902,7 +908,7 @@ safe_void_coroutine AppHost::HandleSummon(const winrt::TerminalApp::SummonWindow
         const auto action = args && args.ToggleHudInteraction() ? Action::ToggleInteraction :
                             args && args.ToggleVisibility()     ? Action::ToggleVisibility :
                                                                   Action::Activate;
-        _ApplyHudState(action);
+        ApplyHudAction(action);
     }
     else
     {
@@ -1306,9 +1312,10 @@ safe_void_coroutine AppHost::_WindowInitializedHandler(const winrt::Windows::Fou
     // In AppHost::_WindowMoved, we'll make sure we're at least initialized
     // before dismissing open dialogs.
     _isWindowInitialized = WindowInitializedState::Initialized;
+    PostMessageW(_windowManager->GetMainWindow(), WindowEmperor::WM_HUD_OWNERSHIP_CHANGED, 0, 0);
     if (_windowLogic.IsHudWindow() && GetForegroundWindow() != _window->GetHandle())
     {
-        _ApplyHudState(Microsoft::Terminal::Hud::Action::Deactivate);
+        ApplyHudAction(Microsoft::Terminal::Hud::Action::Deactivate);
     }
 }
 

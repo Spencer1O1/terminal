@@ -17,6 +17,8 @@ Abstract:
 
 #pragma once
 
+#include "HudOwnership.h"
+
 class AppHost;
 
 class WindowEmperor
@@ -29,12 +31,17 @@ public:
         WM_IDENTIFY_ALL_WINDOWS,
         WM_NOTIFY_FROM_NOTIFICATION_AREA,
         WM_UPDATE_NOTIFICATION_ICON,
+        WM_HUD_OWNERSHIP_CHANGED,
     };
 
     HWND GetMainWindow() const noexcept;
     AppHost* GetWindowById(uint64_t id) const noexcept;
     AppHost* GetWindowByName(std::wstring_view name) const noexcept;
     AppHost* GetHudWindow() const noexcept;
+    bool ClaimHudOwnership(AppHost& host);
+    void ReleaseHudOwnership(AppHost& host);
+    void ActivateHudOwner();
+    void RequestHudAction(winrt::Microsoft::Terminal::Settings::Model::ShortcutAction action);
     // CreateNewWindow is used for creating a new window from existing Content
     void CreateNewWindow(winrt::TerminalApp::WindowRequestedArgs args);
     void HandleCommandlineArgs(int nCmdShow);
@@ -64,9 +71,13 @@ private:
     void _notificationAreaMenuRequested(WPARAM wParam);
     void _notificationAreaMenuClicked(WPARAM wParam, LPARAM lParam) const;
     void _hotkeyPressed(long hotkeyIndex);
-    void _registerHotKey(int index, const winrt::Microsoft::Terminal::Control::KeyChord& hotkey) noexcept;
+    bool _registerHotKey(int index, const winrt::Microsoft::Terminal::Control::KeyChord& hotkey) noexcept;
     void _unregisterHotKey(int index) noexcept;
     void _setupGlobalHotkeys();
+    void _updateHudHotkeys();
+    void _drainHudRequests();
+    bool _forwardHudRequest(Microsoft::Terminal::Hud::Request request);
+    void _handleHudRequest(Microsoft::Terminal::Hud::Request request);
     void _setupSessionPersistence(bool enabled);
     void _persistState(const winrt::Microsoft::Terminal::Settings::Model::ApplicationState& state) const;
     void _finalizeSessionPersistence() const;
@@ -75,10 +86,16 @@ private:
     wil::unique_hwnd _window;
     winrt::TerminalApp::App _app{ nullptr };
     std::vector<std::shared_ptr<::AppHost>> _windows;
+    Microsoft::Terminal::Hud::Ownership _hudOwnership;
+    std::weak_ptr<AppHost> _hudHost;
+    uint64_t _hudOwnershipEpoch{};
+    std::vector<std::pair<uint64_t, Microsoft::Terminal::Hud::Request>> _pendingHudRequests;
     struct GlobalHotkey
     {
         winrt::Microsoft::Terminal::Settings::Model::ShortcutAction Action;
         winrt::Microsoft::Terminal::Settings::Model::GlobalSummonArgs SummonArgs{ nullptr };
+        winrt::Microsoft::Terminal::Control::KeyChord Keys{ nullptr };
+        bool Registered{};
     };
     std::vector<GlobalHotkey> _hotkeys;
     NOTIFYICONDATA _notificationIcon{};

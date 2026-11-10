@@ -10,23 +10,10 @@ void AppHost::_CaptureHudPlacement()
     _hudNormalPlacement = placement;
 }
 
-void AppHost::_ToggleHudModeRequested(const winrt::Windows::Foundation::IInspectable&,
-                                      const winrt::Windows::Foundation::IInspectable&)
+void AppHost::_HudActionRequested(const winrt::Windows::Foundation::IInspectable&,
+                                 const winrt::Microsoft::Terminal::Settings::Model::ShortcutAction action)
 {
-    if (!_windowLogic.IsHudWindow())
-    {
-        if (const auto existing = _windowManager->GetHudWindow(); existing && existing != this)
-        {
-            // Retain one HUD per app instance. Activate that HUD instead of
-            // unexpectedly changing the role of a second window.
-            winrt::TerminalApp::SummonWindowBehavior summon;
-            summon.ToggleVisibility(false);
-            summon.ToMonitor(winrt::TerminalApp::MonitorBehavior::InPlace);
-            existing->HandleSummon(summon);
-            return;
-        }
-    }
-    _windowLogic.HudModeEnabled(!_windowLogic.IsHudWindow());
+    _windowManager->RequestHudAction(action);
 }
 
 void AppHost::_RememberHudForeground()
@@ -51,11 +38,28 @@ void AppHost::_RestoreHudForeground()
     if (_hudReturnFocus && thread == _hudReturnFocusThread && process == _hudReturnFocusProcess &&
         IsWindowVisible(_hudReturnFocus) && !IsIconic(_hudReturnFocus))
     {
-        SetForegroundWindow(_hudReturnFocus);
+        if (SetForegroundWindow(_hudReturnFocus))
+        {
+            return;
+        }
     }
+    // The previous foreground may have closed, including a transient Settings
+    // window. Give input to the next eligible window instead of recovering to
+    // Active merely because the remembered destination no longer exists.
+    EnumWindows([](HWND candidate, LPARAM data) -> BOOL {
+        const auto hud = reinterpret_cast<HWND>(data);
+        const auto styles = GetWindowLongPtrW(candidate, GWL_EXSTYLE);
+        if (candidate != hud && GetAncestor(candidate, GA_ROOTOWNER) != hud &&
+            IsWindowVisible(candidate) && IsWindowEnabled(candidate) && !IsIconic(candidate) &&
+            !(styles & (WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW)) && SetForegroundWindow(candidate))
+        {
+            return FALSE;
+        }
+        return TRUE;
+    }, reinterpret_cast<LPARAM>(_window->GetHandle()));
 }
 
-void AppHost::_ApplyHudState(const Microsoft::Terminal::Hud::Action action)
+void AppHost::ApplyHudAction(const Microsoft::Terminal::Hud::Action action)
 {
     using namespace Microsoft::Terminal::Hud;
     if (_changingHudState)
@@ -63,7 +67,10 @@ void AppHost::_ApplyHudState(const Microsoft::Terminal::Hud::Action action)
         return;
     }
     _changingHudState = true;
-    const auto resetGuard = wil::scope_exit([&] { _changingHudState = false; });
+    const auto resetGuard = wil::scope_exit([&] {
+        _changingHudState = false;
+        PostMessageW(_windowManager->GetMainWindow(), WindowEmperor::WM_HUD_OWNERSHIP_CHANGED, 0, 0);
+    });
     const auto hwnd = _window->GetHandle();
     const auto ownedForeground = GetForegroundWindow() == hwnd;
     const auto state = _hudState.Apply(action);
@@ -128,6 +135,13 @@ void AppHost::_IsHudWindowChanged(const winrt::Windows::Foundation::IInspectable
 {
     ++_hudModeGeneration;
     const auto enabled = _windowLogic.IsHudWindow();
+    if (enabled && !_windowManager->ClaimHudOwnership(*this))
+    {
+        // Another process won the role. Never apply HUD effects without the lease.
+        _windowLogic.HudModeEnabled(false);
+        _windowManager->ActivateHudOwner();
+        return;
+    }
     {
         const auto previousChanging = std::exchange(_changingHudState, true);
         const auto guard = wil::scope_exit([&] { _changingHudState = previousChanging; });
@@ -157,8 +171,12 @@ void AppHost::_IsHudWindowChanged(const winrt::Windows::Foundation::IInspectable
     }
     if (enabled && _isWindowInitialized == WindowInitializedState::Initialized)
     {
-        _ApplyHudState(Microsoft::Terminal::Hud::Action::Activate);
+        ApplyHudAction(Microsoft::Terminal::Hud::Action::Activate);
+    }
+    if (!enabled)
+    {
+        _windowManager->ReleaseHudOwnership(*this);
     }
     _updateTheme();
-    PostMessageW(_windowManager->GetMainWindow(), WindowEmperor::WM_UPDATE_NOTIFICATION_ICON, 0, 0);
+    PostMessageW(_windowManager->GetMainWindow(), WindowEmperor::WM_HUD_OWNERSHIP_CHANGED, 0, 0);
 }

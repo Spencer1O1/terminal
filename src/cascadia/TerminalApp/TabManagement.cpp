@@ -944,7 +944,7 @@ namespace winrt::TerminalApp::implementation
         if (_hudEnabled && !_IsTerminalTab(tab))
         {
             // Opaque nonterminal UI must not become a click-through overlay.
-            ToggleHudModeRequested.raise(*this, nullptr);
+            HudActionRequested.raise(*this, winrt::Microsoft::Terminal::Settings::Model::ShortcutAction::ToggleHudMode);
         }
         // Unfocus all the tabs.
         for (const auto& tab : _tabs)
