@@ -137,7 +137,7 @@ Wait-Ui
 $process=$null
 try {
     foreach ($key in @(0x74,0x75,0x76,0x77,0x7A,0x7B)) {
-        if (-not [HudProbe]::RegisterHotKey([IntPtr]::Zero,$key,0x4006,$key)) { throw "Fixture shortcut is already occupied: $key" }
+        if (-not [HudProbe]::RegisterHotKey([IntPtr]::Zero,$key,0x4003,$key)) { throw "Fixture shortcut is already occupied: $key" }
         [void][HudProbe]::UnregisterHotKey([IntPtr]::Zero,$key)
     }
     $process=Start-Process -FilePath $exe.FullName -ArgumentList '-w',$WindowName,'-p',$profileId -WorkingDirectory $portableRoot -PassThru
