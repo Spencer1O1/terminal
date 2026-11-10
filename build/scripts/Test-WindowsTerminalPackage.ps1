@@ -8,7 +8,11 @@ Param(
     [Parameter(HelpMessage="Path to Windows Kit")]
     [ValidateScript({Test-Path $_ -Type Container})]
     [string]
-    $WindowsKitPath = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0"
+    $WindowsKitPath = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0",
+
+    [Parameter(HelpMessage="Execute the trusted HUD package COM proxy factory check using a matching-architecture PowerShell process")]
+    [switch]
+    $ValidateComProxy
 )
 
 $ErrorActionPreference = "Stop"
@@ -122,6 +126,55 @@ Try {
             }
         }
         $null = Get-Content -LiteralPath (Join-Path $AppxPackageRootPath 'profiles.schema.json') -Raw | ConvertFrom-Json
+
+        If ($ValidateComProxy) {
+            $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant()
+            If ($architecture -ne $Manifest.Package.Identity.ProcessorArchitecture) {
+                Throw 'COM proxy validation requires a PowerShell process matching the package architecture.'
+            }
+            $proxy = $Manifest.SelectSingleNode("//*[local-name()='ProxyStub']")
+            If ($null -eq $proxy -or $proxy.Path -ne 'OpenConsoleProxy.dll') {
+                Throw 'HUD package must register its OpenConsoleProxy.dll factory.'
+            }
+            If (-not ('HudPackageProxyFactory' -as [type])) {
+                Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class HudPackageProxyFactory {
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    private static extern IntPtr LoadLibraryW(string path);
+    [DllImport("kernel32.dll", SetLastError=true)]
+    private static extern IntPtr GetProcAddress(IntPtr module, string name);
+    [DllImport("kernel32.dll")]
+    private static extern bool FreeLibrary(IntPtr module);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int Factory(ref Guid clsid, ref Guid iid, out IntPtr instance);
+    public static int Check(string path, Guid clsid) {
+        var module = LoadLibraryW(path);
+        if (module == IntPtr.Zero) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        try {
+            var entry = GetProcAddress(module, "DllGetClassObject");
+            if (entry == IntPtr.Zero) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            var factory = (Factory)Marshal.GetDelegateForFunctionPointer(entry, typeof(Factory));
+            var iid = new Guid("D5F569D0-593B-101A-B569-08002B2DBF7A"); // IPSFactoryBuffer
+            IntPtr instance;
+            var result = factory(ref clsid, ref iid, out instance);
+            if (instance != IntPtr.Zero) Marshal.Release(instance);
+            return result;
+        } finally { FreeLibrary(module); }
+    }
+}
+'@
+            }
+            # Opt-in: this executes the trusted build's DLL without registering it.
+            # Catch manifest/binary factory ID mismatches before installation.
+            $result = [HudPackageProxyFactory]::Check((Join-Path $AppxPackageRootPath 'OpenConsoleProxy.dll'), [guid]$proxy.Id)
+            If ($result -ne 0) {
+                Throw ('HUD proxy factory does not match its manifest CLSID: HRESULT 0x' + $result.ToString('X8'))
+            }
+            Write-Output 'HUD_COM_PROXY_FACTORY_VALIDATED'
+        }
+
         ForEach ($binary in @('WindowsTerminal.exe', 'TerminalApp.dll', 'OpenConsole.exe')) {
             $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $AppxPackageRootPath $binary))
             If ($info.ProductVersion -ne $Manifest.Package.Identity.Version) {

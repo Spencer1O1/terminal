@@ -56,6 +56,11 @@
     <ClCompile Include="$(IntDir)\ITerminalHandoff_i.c" />
     <ClCompile Include="$(IntDir)\ITerminalHandoff_p.c" />
   </ItemGroup>
+  <ItemDefinitionGroup Condition="'$(WindowsTerminalBranding)'=='HUD'">
+    <ClCompile>
+      <PreprocessorDefinitions>PROXY_CLSID_IS={0x2AA86399,0xE084,0x4E65,{0xBD,0xA2,0xD8,0xEC,0xA6,0xD7,0x14,0x3A}};%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(WindowsTerminalBranding)'=='Release'">
     <ClCompile>
       <PreprocessorDefinitions>PROXY_CLSID_IS={0x3171DE52,0x6EFA,0x4AEF,{0x8A,0x9F,0xD0,0x2B,0xD6,0x7E,0x7A,0x4F}};%(PreprocessorDefinitions)</PreprocessorDefinitions>
