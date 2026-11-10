@@ -38,6 +38,7 @@ namespace SettingsModelUnitTests
 
         TEST_METHOD(GlobalSettings);
         TEST_METHOD(HudActiveOpacity);
+        TEST_METHOD(HudPadding);
         TEST_METHOD(Profile);
         TEST_METHOD(ColorScheme);
         TEST_METHOD(Actions);
@@ -117,6 +118,36 @@ namespace SettingsModelUnitTests
             VERIFY_ARE_EQUAL(expected, copy->HudActiveOpacity());
             const auto restored = implementation::GlobalAppSettings::FromJson(saved);
             VERIFY_ARE_EQUAL(expected, restored->HudActiveOpacity());
+        }
+    }
+
+    void SerializationTests::HudPadding()
+    {
+        const auto defaults = implementation::GlobalAppSettings::FromJson(VerifyParseSucceeded("{}"));
+        VERIFY_ARE_EQUAL(0.0, defaults->HudHorizontalPadding());
+        VERIFY_ARE_EQUAL(0.0, defaults->HudVerticalPadding());
+        VERIFY_IS_FALSE(defaults->ToJson().isMember("hudHorizontalPadding"));
+        VERIFY_IS_FALSE(defaults->ToJson().isMember("hudVerticalPadding"));
+        for (const auto value : { -10.0, 0.0, 24.5, 1000.0, 1500.0 })
+        {
+            Json::Value json{ Json::objectValue };
+            json["hudHorizontalPadding"] = value;
+            json["hudVerticalPadding"] = 13.25;
+            const auto settings = implementation::GlobalAppSettings::FromJson(json);
+            const auto expected = std::clamp(value, 0.0, 1000.0);
+            VERIFY_ARE_EQUAL(expected, settings->HudHorizontalPadding());
+            VERIFY_ARE_EQUAL(13.25, settings->HudVerticalPadding());
+            const auto saved = settings->ToJson();
+            VERIFY_ARE_EQUAL(expected, saved["hudHorizontalPadding"].asDouble());
+            VERIFY_ARE_EQUAL(13.25, saved["hudVerticalPadding"].asDouble());
+            const auto copy = settings->Copy();
+            VERIFY_ARE_EQUAL(expected, copy->HudHorizontalPadding());
+            VERIFY_ARE_EQUAL(13.25, copy->HudVerticalPadding());
+            const auto restored = implementation::GlobalAppSettings::FromJson(saved);
+            VERIFY_ARE_EQUAL(expected, restored->HudHorizontalPadding());
+            VERIFY_ARE_EQUAL(13.25, restored->HudVerticalPadding());
+            json["hudVerticalPadding"] = value;
+            VERIFY_ARE_EQUAL(expected, implementation::GlobalAppSettings::FromJson(json)->HudVerticalPadding());
         }
     }
 

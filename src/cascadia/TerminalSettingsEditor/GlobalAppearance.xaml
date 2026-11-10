@@ -53,6 +53,28 @@
                             Value="{x:Bind ViewModel.HudActiveOpacity, Mode=TwoWay}" />
         </local:SettingContainer>
 
+        <local:SettingContainer x:Name="HudHorizontalPadding"
+                                x:Uid="Globals_HudHorizontalPadding">
+            <muxc:NumberBox x:Uid="Globals_HudHorizontalPaddingNumberBox"
+                            Minimum="0"
+                            Maximum="1000"
+                            SmallChange="1"
+                            SpinButtonPlacementMode="Compact"
+                            Style="{StaticResource NumberBoxSettingStyle}"
+                            Value="{x:Bind ViewModel.HudHorizontalPadding, Mode=TwoWay}" />
+        </local:SettingContainer>
+
+        <local:SettingContainer x:Name="HudVerticalPadding"
+                                x:Uid="Globals_HudVerticalPadding">
+            <muxc:NumberBox x:Uid="Globals_HudVerticalPaddingNumberBox"
+                            Minimum="0"
+                            Maximum="1000"
+                            SmallChange="1"
+                            SpinButtonPlacementMode="Compact"
+                            Style="{StaticResource NumberBoxSettingStyle}"
+                            Value="{x:Bind ViewModel.HudVerticalPadding, Mode=TwoWay}" />
+        </local:SettingContainer>
+
         <!--  Position of new tab  -->
         <local:SettingContainer x:Name="NewTabPosition"
                                 x:Uid="Globals_NewTabPosition">

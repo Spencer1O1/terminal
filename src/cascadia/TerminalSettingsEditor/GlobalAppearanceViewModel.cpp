@@ -117,6 +117,36 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         _NotifyChanges(L"HudActiveOpacity");
     }
 
+    double GlobalAppearanceViewModel::HudHorizontalPadding()
+    {
+        return _GlobalSettings.HudHorizontalPadding();
+    }
+
+    void GlobalAppearanceViewModel::HudHorizontalPadding(const double value)
+    {
+        // NumberBox uses NaN when its field is empty; retain the saved setting.
+        if (std::isfinite(value))
+        {
+            _GlobalSettings.HudHorizontalPadding(std::clamp(value, 0.0, 1000.0));
+        }
+        _NotifyChanges(L"HudHorizontalPadding");
+    }
+
+    double GlobalAppearanceViewModel::HudVerticalPadding()
+    {
+        return _GlobalSettings.HudVerticalPadding();
+    }
+
+    void GlobalAppearanceViewModel::HudVerticalPadding(const double value)
+    {
+        // NumberBox uses NaN when its field is empty; retain the saved setting.
+        if (std::isfinite(value))
+        {
+            _GlobalSettings.HudVerticalPadding(std::clamp(value, 0.0, 1000.0));
+        }
+        _NotifyChanges(L"HudVerticalPadding");
+    }
+
     bool GlobalAppearanceViewModel::InvertedDisableAnimations()
     {
         return !_GlobalSettings.DisableAnimations();

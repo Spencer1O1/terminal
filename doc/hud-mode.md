@@ -71,6 +71,18 @@ profile/runtime opacity. Ordinary opacity shortcuts leave that hidden runtime
 value untouched while HUD is enabled; use the dedicated HUD setting instead.
 HUD retains its fullscreen/focus presentation until its mode is disabled. HUD does not lower whole-window alpha.
 
+HUD horizontal and vertical padding are also available in Settings > Appearance.
+They add spacing around the entire HUD content, including split panes, in
+DPI-aware device-independent pixels. Both default to 0 and accept 0–1000.
+Existing profile padding is retained. Leaving HUD restores the ordinary content
+margin; changing either value reloads the current HUD without restarting sessions.
+For example:
+
+```json
+"hudHorizontalPadding": 48,
+"hudVerticalPadding": 24
+```
+
 ## Implementation
 
 - `WindowsTerminal/HudState.h` contains the window-independent transition policy.

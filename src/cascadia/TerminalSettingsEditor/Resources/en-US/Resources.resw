@@ -2762,4 +2762,22 @@
   <data name="Globals_HudActiveOpacityNumberBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>HUD Active opacity (%)</value>
   </data>
+  <data name="Globals_HudHorizontalPadding.Header" xml:space="preserve">
+    <value>HUD horizontal padding</value>
+  </data>
+  <data name="Globals_HudHorizontalPadding.HelpText" xml:space="preserve">
+    <value>Extra space at the left and right of the entire HUD, in device-independent pixels (0–1000). Applies around all panes; normal terminal padding is unchanged.</value>
+  </data>
+  <data name="Globals_HudHorizontalPaddingNumberBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>HUD horizontal padding</value>
+  </data>
+  <data name="Globals_HudVerticalPadding.Header" xml:space="preserve">
+    <value>HUD vertical padding</value>
+  </data>
+  <data name="Globals_HudVerticalPadding.HelpText" xml:space="preserve">
+    <value>Extra space at the top and bottom of the entire HUD, in device-independent pixels (0–1000). Applies around all panes; normal terminal padding is unchanged.</value>
+  </data>
+  <data name="Globals_HudVerticalPaddingNumberBox.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>HUD vertical padding</value>
+  </data>
 </root>

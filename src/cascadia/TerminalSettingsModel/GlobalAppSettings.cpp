@@ -191,6 +191,14 @@ void GlobalAppSettings::LayerJson(const Json::Value& json, const OriginTag origi
     {
         HudActiveOpacity(std::clamp(HudActiveOpacity(), 0.0, 100.0));
     }
+    if (HasHudHorizontalPadding())
+    {
+        HudHorizontalPadding(std::clamp(HudHorizontalPadding(), 0.0, 1000.0));
+    }
+    if (HasHudVerticalPadding())
+    {
+        HudVerticalPadding(std::clamp(HudVerticalPadding(), 0.0, 1000.0));
+    }
     LayerActionsFrom(json, origin, true);
 
     // No need to update _fixupsAppliedDuringLoad here.
