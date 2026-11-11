@@ -20,7 +20,7 @@
   <Identity
     Name="Spencer1O1.WindowsTerminalHUD"
     Publisher="CN=Spencer1O1"
-    Version="1.25.2733.4" />
+    Version="1.25.2733.5" />
 
   <Properties>
     <DisplayName>Windows Terminal HUD</DisplayName>

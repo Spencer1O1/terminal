@@ -1367,14 +1367,25 @@ void WindowEmperor::_hotkeyPressed(const long hotkeyIndex)
     {
         return;
     }
-    if (hotkey.Action == Settings::Model::ShortcutAction::ToggleHudMode ||
-        hotkey.Action == Settings::Model::ShortcutAction::HudMode || hotkey.Action == Settings::Model::ShortcutAction::HudVisibility)
+    if (hotkey.Action == Settings::Model::ShortcutAction::HudMode || hotkey.Action == Settings::Model::ShortcutAction::HudVisibility)
     {
         RequestHudAction(hotkey.Action);
         return;
     }
     const auto& summonArgs = hotkey.SummonArgs;
 
+    const auto args = _makeSummonArgs(summonArgs);
+
+    if (_summonWindow(args))
+    {
+        return;
+    }
+
+    _createNamedWindow(summonArgs.Name());
+}
+
+WindowEmperor::SummonWindowSelectionArgs WindowEmperor::_makeSummonArgs(const Settings::Model::GlobalSummonArgs& summonArgs)
+{
     // desktop:any - MoveToCurrentDesktop=false, OnCurrentDesktop=false
     // desktop:toCurrent - MoveToCurrentDesktop=true, OnCurrentDesktop=false
     // desktop:onCurrent - MoveToCurrentDesktop=false, OnCurrentDesktop=true
@@ -1398,12 +1409,12 @@ void WindowEmperor::_hotkeyPressed(const long hotkeyIndex)
         break;
     }
 
-    if (_summonWindow(args))
-    {
-        return;
-    }
+    return args;
+}
 
-    hstring argv[] = { L"wt", L"-w", summonArgs.Name() };
+void WindowEmperor::_createNamedWindow(const hstring& name)
+{
+    hstring argv[] = { L"wt", L"-w", name };
     if (argv[2].empty())
     {
         argv[2] = L"new";
@@ -1467,10 +1478,10 @@ void WindowEmperor::_setupGlobalHotkeys()
         const auto action = cmd.ActionAndArgs();
         const auto kind = action.Action();
         auto summonArgs = action.Args().try_as<Settings::Model::GlobalSummonArgs>();
-        if (summonArgs || kind == Settings::Model::ShortcutAction::ToggleHudMode || kind == Settings::Model::ShortcutAction::HudMode || kind == Settings::Model::ShortcutAction::HudVisibility)
+        if (summonArgs || kind == Settings::Model::ShortcutAction::HudMode || kind == Settings::Model::ShortcutAction::HudVisibility)
         {
             const auto index = gsl::narrow_cast<int>(_hotkeys.size());
-            const auto hudAction = kind == Settings::Model::ShortcutAction::ToggleHudMode || kind == Settings::Model::ShortcutAction::HudMode || kind == Settings::Model::ShortcutAction::HudVisibility;
+            const auto hudAction = kind == Settings::Model::ShortcutAction::HudMode;
             const auto registered = !hudAction && _registerHotKey(index, keyChord);
             _hotkeys.push_back({ kind, std::move(summonArgs), keyChord, registered });
         }
@@ -1490,7 +1501,16 @@ void WindowEmperor::_updateHudHotkeys()
     {
         auto& hotkey = _hotkeys[index];
         const auto kind = hotkey.Action;
-        if (kind != Settings::Model::ShortcutAction::ToggleHudMode && kind != Settings::Model::ShortcutAction::HudMode && kind != Settings::Model::ShortcutAction::HudVisibility)
+        if (kind == Settings::Model::ShortcutAction::HudVisibility)
+        {
+            // Like Quake, show/hide is available before a named window exists.
+            if (!hotkey.Registered)
+            {
+                hotkey.Registered = _registerHotKey(gsl::narrow_cast<int>(index), hotkey.Keys);
+            }
+            continue;
+        }
+        if (kind != Settings::Model::ShortcutAction::HudMode)
         {
             continue;
         }

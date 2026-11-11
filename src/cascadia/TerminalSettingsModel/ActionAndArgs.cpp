@@ -80,7 +80,6 @@ static constexpr std::string_view GlobalSummonKey{ "globalSummon" };
 static constexpr std::string_view QuakeModeKey{ "quakeMode" };
 static constexpr std::string_view HudModeKey{ "hudMode" };
 static constexpr std::string_view HudVisibilityKey{ "hudVisibility" };
-static constexpr std::string_view ToggleHudModeKey{ "toggleHudMode" };
 static constexpr std::string_view FocusPaneKey{ "focusPane" };
 static constexpr std::string_view OpenSystemMenuKey{ "openSystemMenu" };
 static constexpr std::string_view ExportBufferKey{ "exportBuffer" };

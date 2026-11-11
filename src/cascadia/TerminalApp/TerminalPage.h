@@ -191,6 +191,7 @@ namespace winrt::TerminalApp::implementation
         til::typed_event<IInspectable, winrt::TerminalApp::RenameWindowRequestedArgs> RenameWindowRequested;
         til::typed_event<IInspectable, IInspectable> SummonWindowRequested;
         til::typed_event<IInspectable, winrt::Microsoft::Terminal::Settings::Model::ShortcutAction> HudActionRequested;
+        til::typed_event<IInspectable, IInspectable> ExitHudRequested;
         til::typed_event<IInspectable, winrt::Microsoft::Terminal::Control::WindowSizeChangedEventArgs> WindowSizeChanged;
 
         til::typed_event<IInspectable, IInspectable> OpenSystemMenu;

@@ -7,25 +7,24 @@ and shell sessions retain their normal behavior.
 
 ## Use
 
-Launch the built fork's `WindowsTerminal.exe`. Press Win+Ctrl+Backtick in the
-focused window to enter HUD on its current monitor. Press it again to restore
-its previous window placement, focus/fullscreen presentation and topmost policy.
-The window retains its name and sessions. Opening Settings or selecting a tab
-with nonterminal content exits HUD, keeping opaque UI out of Passive overlays.
-Select a terminal-only tab before entering HUD again. The mode toggle does not
-select or create tabs. Quake windows keep their separate mode;
-renaming a HUD to `_quake` leaves HUD before applying Quake sizing.
+Launch Windows Terminal HUD normally (`wthud.exe` for the installed package).
+Ordinary startup stays ordinary. Win+Shift+Backtick creates a dedicated HUD with
+its own terminal session, or summons the existing HUD using Quake's behavior:
+a foreground HUD on the mouse monitor hides; otherwise it moves to that monitor
+and activates. First creation uses Terminal's normal initial placement, just as
+Quake does. Settings opens in a separate ordinary, Settings-only window and keeps
+the HUD sessions running.
 
 | Default shortcut | Scope | Action |
 | --- | --- | --- |
-| Win+Ctrl+Backtick | Global while HUD exists; focused Terminal otherwise | `toggleHudMode` / `Terminal.ToggleHudMode` |
-| Win+Backtick | Global | `hudMode` / `Terminal.HudMode`: Active/Passive |
-| Win+Shift+Backtick | Global | `hudVisibility` / `Terminal.HudVisibility`: hide/restore |
-| Alt+Backtick | Global | `quakeMode` / `Terminal.QuakeMode` |
+| Win+Shift+Backtick | Global while the fork runs | `hudVisibility` / `Terminal.HudVisibility`: create/summon/hide |
+| Win+Backtick | Global while a HUD exists | `hudMode` / `Terminal.HudMode`: visible Active/Passive |
+| Alt+Backtick | Global while the fork runs | `quakeMode` / `Terminal.QuakeMode` |
 
 Backtick bindings use physical scan code 41. Configure them in Settings > Actions
 or `keybindings` in `settings.json`. Explicit user bindings override defaults.
 A shortcut registered by another application is unavailable until released.
+The former `toggleHudMode` action and Win+Ctrl+Backtick binding are removed.
 
 | State | Background | Input |
 | --- | --- | --- |
@@ -33,27 +32,25 @@ A shortcut registered by another application is unavailable until released.
 | Passive | Transparent; normal glyph opacity retained | Underlying application receives input |
 | Hidden | Window hidden | Underlying application receives input |
 
-Focus loss makes Active become Passive. The interaction action activates a
-Passive/Hidden HUD. Visibility restores the state remembered when hiding.
-Entering Passive returns focus to the previous application. If that window has
-closed, HUD uses another visible, enabled window that accepts activation.
-All three actions work while another application has focus when a HUD exists.
-The mode toggle exits Active, Passive or Hidden HUD directly and restores the
-ordinary terminal window. With no HUD, only a focused terminal tab in this fork
-can enter HUD; interaction and visibility actions do nothing. Escape passes through.
+Focus loss makes Active become Passive. Win+Backtick changes a visible HUD
+between Active and Passive without moving it; it does nothing while HUD is
+hidden or absent. Summoning always shows HUD as Active. Entering Passive returns
+focus to the previous application. If that window has closed, HUD uses another
+visible, enabled window that accepts activation. Escape passes through.
 
 There is one HUD per Windows user and interactive session across updated fork
 processes, including different portable paths and normal/elevated instances.
-A request to create another HUD activates the owner instead. All HUD actions
-route to that owner, which alone registers HUD global shortcuts. Ordinary
-windows remain independent; no background service is introduced. Exiting mode,
-closing the owner, or process termination releases the role.
+A request to create another HUD activates the owner instead. Ordinary windows
+remain independent. Closing the HUD ends its sessions and releases the role;
+its global summon shortcut remains available while an ordinary fork window runs.
+There is no background service: closing every fork window unregisters its keys.
 
-Explicit `WindowsTerminal.exe -w _hud` requests the HUD on the primary monitor
-when that window name is unused. Reusing an existing ordinary name retains its
-current mode. Ordinary command-line reuse excludes HUD windows; explicit names
-and IDs can still target local windows. Renaming does not change mode.
-Generic `globalSummon` activation retains ordinary summon semantics.
+Explicit `WindowsTerminal.exe -w _hud` creates or activates the dedicated HUD.
+Ordinary command-line reuse excludes HUD windows; explicit names and IDs can
+still target local windows. Renaming does not normally change mode; renaming a
+HUD to `_quake` releases HUD before applying Quake sizing. Nonterminal content
+other than redirected Settings releases HUD presentation as a recovery fallback.
+Generic `globalSummon` retains its configured summon semantics.
 
 ## Appearance
 
@@ -69,7 +66,7 @@ backgrounds remain transparent. HUD suppresses acrylic, Mica and background
 images without rewriting profile appearance. Leaving HUD restores normal
 profile/runtime opacity. Ordinary opacity shortcuts leave that hidden runtime
 value untouched while HUD is enabled; use the dedicated HUD setting instead.
-HUD retains its fullscreen/focus presentation until its mode is disabled. HUD does not lower whole-window alpha.
+The dedicated HUD uses fullscreen/focus presentation. HUD does not lower whole-window alpha.
 
 HUD horizontal and vertical padding are also available in Settings > Appearance.
 They add spacing around the entire HUD content, including split panes, in
@@ -98,12 +95,13 @@ For example:
   to controls. `ControlCore` overrides background opacity in memory. Unchanged
   HUD appearance does not rebuild control brushes.
 - `HudOwnership.h` uses a named mutex scoped to the user/session, plus an
-  owner-window property and a registered message for four bounded window-only
+  owner-window property and a registered message for three bounded window-only
   requests. Ownership survives Active/Passive/Hidden and is released on mode
   exit or closure. An abandoned mutex can be taken over after a crash.
-- `WindowEmperor.Hud.cpp` routes the three configurable actions to the owner.
-  Only the owner registers HUD shortcuts. A focused normal terminal can enter
-  HUD through its ordinary action handler; Settings gets no special key listener.
+- `WindowEmperor.Hud.cpp` routes the two configurable actions to the owner.
+  The summon shortcut uses the existing named-window creation path when no HUD
+  exists; only the owner registers the interaction shortcut. Settings needs no
+  special key listener.
 - Cross-elevation messages contain no commands, profiles, paths or input. The
   existing command-line handoff remains restricted to its original instance.
 - Stable hotkey indices are retained while HUD ownership changes so queued
@@ -167,11 +165,11 @@ pwsh -NoProfile -Sta -File .\tools\Test-HudModeDesktop.ps1 `
   -RuntimeDirectory .\bin\x64\Debug\WindowsTerminal
 ```
 
-It exercises fresh HUD launch, ordinary-window conversion, real click-through,
-foreground restoration, hide/show memory, Escape, shell survival, exact window
-restoration, opacity rendering/live reload, and the real Appearance save path.
-It selects a secondary monitor when one is exposed. Test global shortcuts are
-Ctrl+Alt+F5/F6/F7/F8/F13/F14/F15; occupied chords abort the fixture before input injection.
+It exercises dedicated creation, ordinary-window independence, Active/Passive,
+hidden interaction, Quake-style show/hide, click-through, opacity, cross-process
+single ownership, separate Settings without an extra shell, live padding reload,
+closure and recreation. Test shortcuts are Ctrl+Alt+F6/F13/F14; occupied chords
+abort the fixture before input injection.
 Run on an idle desktop with other custom/unpackaged Terminal processes closed.
 The driver checks that condition before starting and before sending input; stock
 Microsoft-packaged Terminal can remain open. Do not interact with the desktop
@@ -190,8 +188,8 @@ multimonitor, signing and default-host validation before distribution.
 
 ## Fork releases
 
-`stable` tracks the upstream stable tag. HUD implementation/review commits live
-on `feature/hudmode-stable`; `release/hud-1.25` merges that branch and carries the
+`stable` tracks the upstream stable tag. HUD changes live on feature branches, including `feature/hudmode-stable` and
+`feature/hud-quake-lifecycle`; `release/hud-1.25` integrates them and carries the
 fork's packaging identity. No public PR is required for this local workflow.
 
 Build the fork package from a native Visual Studio developer shell after
@@ -205,7 +203,7 @@ msbuild OpenConsole.slnx /t:Terminal\CascadiaPackage `
   /p:AppxSymbolPackageEnabled=false /m
 ```
 
-The next fork package version is **1.25.2733.2**, with display name
+The fork package version is **1.25.2733.5**, with display name
 **Windows Terminal HUD**, package name `Spencer1O1.WindowsTerminalHUD`, and
 publisher `CN=Spencer1O1`. The `HUD` branding uses upstream's stable feature flags,
 keeps the normal terminal icon, includes fonts/profile icons and the fork's JSON

@@ -115,8 +115,7 @@
     ON_ALL_ACTIONS(QuickFix)                \
     ON_ALL_ACTIONS(OpenCWD)                 \
     ON_ALL_ACTIONS(HudMode)                 \
-    ON_ALL_ACTIONS(HudVisibility)           \
-    ON_ALL_ACTIONS(ToggleHudMode)
+    ON_ALL_ACTIONS(HudVisibility)
 
 #define ALL_SHORTCUT_ACTIONS_WITH_ARGS             \
     ON_ALL_ACTIONS_WITH_ARGS(AdjustFontSize)       \

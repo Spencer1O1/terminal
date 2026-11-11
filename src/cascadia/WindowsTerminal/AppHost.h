@@ -64,6 +64,7 @@ private:
     void _HudActionRequested(const winrt::Windows::Foundation::IInspectable&,
                              winrt::Microsoft::Terminal::Settings::Model::ShortcutAction action);
 
+    void _ExitHudRequested(const winrt::Windows::Foundation::IInspectable&, const winrt::Windows::Foundation::IInspectable&);
     void _RememberHudForeground();
     void _RestoreHudForeground();
     void _IsHudWindowChanged(const winrt::Windows::Foundation::IInspectable& sender,
@@ -177,6 +178,7 @@ private:
         winrt::TerminalApp::TerminalWindow::IsHudWindowChanged_revoker IsHudWindowChanged;
         winrt::TerminalApp::TerminalWindow::SummonWindowRequested_revoker SummonWindowRequested;
         winrt::TerminalApp::TerminalWindow::HudActionRequested_revoker HudActionRequested;
+        winrt::TerminalApp::TerminalWindow::ExitHudRequested_revoker ExitHudRequested;
         winrt::TerminalApp::TerminalWindow::OpenSystemMenu_revoker OpenSystemMenu;
         winrt::TerminalApp::TerminalWindow::QuitRequested_revoker QuitRequested;
         winrt::TerminalApp::TerminalWindow::ShowWindowChanged_revoker ShowWindowChanged;

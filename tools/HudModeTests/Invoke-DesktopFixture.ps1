@@ -1,453 +1,167 @@
-# Native GUI fixture for the isolated portable fork. Never targets installed Terminal.
+# Owned native Windows fixture for the dedicated, Quake-style HUD lifecycle.
 #Requires -Version 7
-param(
-    [Parameter(Mandatory)][string]$Executable,
-    [Parameter(Mandatory)][string]$EvidenceDirectory,
-    [string]$WindowName = '_hud',
-    [double]$ActiveOpacity = 35,
-    [switch]$ConvertExisting
-)
-$ErrorActionPreference = 'Stop'
+param([Parameter(Mandatory)][string]$Executable,[Parameter(Mandatory)][string]$EvidenceDirectory)
+$ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'DesktopIsolation.ps1')
 Assert-HudDesktopIsolation
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing,UIAutomationClient,UIAutomationTypes
-Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing.Primitives,System.ComponentModel.Primitives,System.Collections -TypeDefinition @'
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Text;
+Add-Type -TypeDefinition @'
+using System;using System.Text;using System.Collections.Generic;using System.Runtime.InteropServices;
 public static class HudProbe {
-    public delegate bool EnumProc(IntPtr window, IntPtr data);
-    [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
-    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
-    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc callback, IntPtr data);
-    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
-    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
-    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
-    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
-    [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr window,int id,uint modifiers,uint key);
-    [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr window,int id);
-    [DllImport("user32.dll")] public static extern uint MapVirtualKeyW(uint code,uint type);
-    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window,IntPtr order,int x,int y,int width,int height,uint flags);
-    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int command);
-    [DllImport("user32.dll")] public static extern IntPtr GetWindowLongPtrW(IntPtr window, int index);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassNameW(IntPtr window, StringBuilder text, int count);
-    [DllImport("user32.dll")] public static extern IntPtr PostMessageW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
-    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(long point);
-    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
-    [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
-    [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
-    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr window,uint command);
-    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
-    public static bool IsAbove(IntPtr upper,IntPtr lower) {
-        var seen=new HashSet<IntPtr>();
-        for (var window=upper;window!=IntPtr.Zero && seen.Add(window);window=GetWindow(window,2)) {
-            if (window==lower) return true;
-        }
-        return false;
-    }
-    public static IntPtr[] Windows(int process) {
-        var result=new List<IntPtr>();
-        EnumWindows((window,data)=> { uint owner; GetWindowThreadProcessId(window,out owner); if (owner==process) result.Add(window); return true; }, IntPtr.Zero);
-        return result.ToArray();
-    }
-    public static void Chord(byte function) {
-        // Dedicated fixture bindings: Ctrl+Alt+F13/F14. Never sends Windows shortcuts.
-        keybd_event(0x11,0,0,UIntPtr.Zero); keybd_event(0x12,0,0,UIntPtr.Zero);
-        keybd_event(function,0,0,UIntPtr.Zero); keybd_event(function,0,2,UIntPtr.Zero);
-        keybd_event(0x12,0,2,UIntPtr.Zero); keybd_event(0x11,0,2,UIntPtr.Zero);
-    }
-
-}
-public class HudProbeApplication : System.Windows.Forms.Form {
-    public bool ActivateOnShow { get; set; }
-    protected override bool ShowWithoutActivation { get { return !ActivateOnShow; } }
+ public delegate bool Callback(IntPtr window,IntPtr unused);
+ [StructLayout(LayoutKind.Sequential)]public struct Rect {public int Left,Top,Right,Bottom;}
+ [DllImport("user32.dll")]public static extern bool EnumWindows(Callback callback,IntPtr data);
+ [DllImport("user32.dll")]public static extern uint GetWindowThreadProcessId(IntPtr window,out uint pid);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetClassNameW(IntPtr window,StringBuilder text,int size);
+ [DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr window,out Rect rect);
+ [DllImport("user32.dll")]public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr window);
+ [DllImport("user32.dll")]public static extern bool IsWindowVisible(IntPtr window);
+ [DllImport("user32.dll")]public static extern bool IsWindow(IntPtr window);
+ [DllImport("user32.dll")]public static extern bool IsIconic(IntPtr window);
+ [DllImport("user32.dll")]public static extern IntPtr GetWindowLongPtrW(IntPtr window,int index);
+ [DllImport("user32.dll")]public static extern bool SetWindowPos(IntPtr window,IntPtr order,int x,int y,int w,int h,uint flags);
+ [DllImport("user32.dll")]public static extern bool PostMessageW(IntPtr window,uint message,IntPtr a,IntPtr b);
+ [DllImport("user32.dll")]public static extern bool RegisterHotKey(IntPtr window,int id,uint modifiers,uint key);
+ [DllImport("user32.dll")]public static extern bool UnregisterHotKey(IntPtr window,int id);
+ [DllImport("user32.dll")]public static extern uint GetDpiForWindow(IntPtr window);
+ [DllImport("user32.dll")]public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+ [DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);
+ [DllImport("user32.dll")]public static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);
+ [DllImport("user32.dll")]public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
+ public static IntPtr[] Windows(int target){var result=new List<IntPtr>();EnumWindows((window,unused)=>{uint pid;GetWindowThreadProcessId(window,out pid);if(pid==(uint)target){var name=new StringBuilder(256);GetClassNameW(window,name,256);if(name.ToString()=="CASCADIA_HOSTING_WINDOW_CLASS")result.Add(window);}return true;},IntPtr.Zero);return result.ToArray();}
+ public static void Chord(byte key){keybd_event(0x11,0,0,UIntPtr.Zero);keybd_event(0x12,0,0,UIntPtr.Zero);keybd_event(key,0,0,UIntPtr.Zero);keybd_event(key,0,2,UIntPtr.Zero);keybd_event(0x12,0,2,UIntPtr.Zero);keybd_event(0x11,0,2,UIntPtr.Zero);}
 }
 '@
 [void][HudProbe]::SetThreadDpiAwarenessContext([IntPtr]::new(-4))
-function Wait-Ui([int]$Milliseconds = 500) {
-    $until = [DateTime]::UtcNow.AddMilliseconds($Milliseconds)
-    do { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 20 } while ([DateTime]::UtcNow -lt $until)
+function Wait-Ui([int]$Milliseconds=500){$until=[DateTime]::UtcNow.AddMilliseconds($Milliseconds);do{[System.Windows.Forms.Application]::DoEvents();Start-Sleep -Milliseconds 20}while([DateTime]::UtcNow -lt $until)}
+function Assert-Probe([bool]$Condition,[string]$Message){if(-not $Condition){throw $Message};Write-Output "PASS: $Message"}
+function Read-State([IntPtr]$Window){$rect=[HudProbe+Rect]::new();[void][HudProbe]::GetWindowRect($Window,[ref]$rect);@{visible=[HudProbe]::IsWindowVisible($Window);exstyle=[HudProbe]::GetWindowLongPtrW($Window,-20).ToInt64();rect=$rect}}
+function Invoke-FixtureChord([byte]$Key){
+ $owned=@($process.Id)+@($script:additionalProcesses|ForEach-Object Id)
+ Assert-HudDesktopIsolation -OwnedProcessIds $owned
+ $fore=[HudProbe]::GetForegroundWindow();$pidOwner=0u;[void][HudProbe]::GetWindowThreadProcessId($fore,[ref]$pidOwner)
+ if($fore -ne $background.Handle -and $pidOwner -notin $owned){throw 'Focus left the owned fixture; stopping before input.'}
+ [HudProbe]::Chord($Key)
 }
-function Assert-Probe([bool]$Condition, [string]$Message) {
-    if (-not $Condition) { throw $Message }
-    Write-Output "PASS: $Message"
+function Shell-Records {@(Get-ChildItem -LiteralPath $receipts -Filter 'shell-*.json'|ForEach-Object {Get-Content -LiteralPath $_.FullName -Raw|ConvertFrom-Json})}
+function Wait-NewWindow($Process,[IntPtr[]]$Except=@()){
+ for($attempt=0;$attempt -lt 100;$attempt++){foreach($window in [HudProbe]::Windows($Process.Id)){if($window -notin $Except -and [HudProbe]::IsWindowVisible($window)){return $window}};if($Process.HasExited){throw 'Owned Terminal exited during window creation.'};Wait-Ui 100}
+ throw 'Owned Terminal window did not appear.'
 }
-function Invoke-FixtureChord([byte]$Key) {
-    Assert-HudDesktopIsolation -OwnedProcessIds (@($process.Id)+@($script:additionalProcesses | ForEach-Object Id))
-    $foreground = [HudProbe]::GetForegroundWindow()
-    $owner=0u
-    [void][HudProbe]::GetWindowThreadProcessId($foreground,[ref]$owner)
-    $owned=@($process.Id)+@($script:additionalProcesses | ForEach-Object Id)
-    if ($foreground -ne $background.Handle -and $owner -notin $owned) {
-        throw 'Desktop focus moved outside the owned fixture; stopping before input injection.'
-    }
-    [HudProbe]::Chord($Key)
+function Assert-Opacity([double]$Opacity){
+ $bitmap=[System.Drawing.Bitmap]::new(1,1);$paint=[System.Drawing.Graphics]::FromImage($bitmap)
+ try{$paint.CopyFromScreen($screen.Left+[int]($screen.Width/2),$screen.Top+[int]($screen.Height/2),0,0,$bitmap.Size);$pixel=$bitmap.GetPixel(0,0);$factor=1-$Opacity/100;Assert-Probe ([Math]::Abs($pixel.R-40*$factor) -le 3 -and [Math]::Abs($pixel.G-160*$factor) -le 3 -and [Math]::Abs($pixel.B-220*$factor) -le 3) "HUD background has $Opacity percent opacity"}finally{$paint.Dispose();$bitmap.Dispose()}
 }
-function Invoke-ModeToggle {
-    # Use a dedicated global action binding; never inject Windows-key chords.
-    Invoke-FixtureChord 0x7E # Ctrl+Alt+F15
-}
-function Assert-BackgroundOpacity([double]$Opacity, [int]$X=($screen.Left+[int]($screen.Width/2)), [int]$Y=($screen.Top+[int]($screen.Height/2)), [string]$Context="Active") {
-    $probe=[System.Drawing.Bitmap]::new(1,1)
-    $paint=[System.Drawing.Graphics]::FromImage($probe)
-    try {
-        $paint.CopyFromScreen($X,$Y,0,0,$probe.Size)
-        $pixel=$probe.GetPixel(0,0)
-        $factor=1-$Opacity/100
-        Write-Output ("Opacity probe ({0}): pixel={1},{2},{3}; state={4}" -f $Context,$pixel.R,$pixel.G,$pixel.B,((Read-State $target) | ConvertTo-Json -Compress))
-        $matches=[Math]::Abs($pixel.R-40*$factor) -le 3 -and [Math]::Abs($pixel.G-160*$factor) -le 3 -and [Math]::Abs($pixel.B-220*$factor) -le 3
-        Assert-Probe $matches "$Context background matches $Opacity percent opacity"
-    } finally { $paint.Dispose(); $probe.Dispose() }
-}
-. (Join-Path $PSScriptRoot 'WindowOrderProbes.ps1')
-. (Join-Path $PSScriptRoot 'MultiInstanceProbe.ps1')
 . (Join-Path $PSScriptRoot 'PaddingProbes.ps1')
-function Read-State([IntPtr]$Window) {
-    $rect = [HudProbe+Rect]::new()
-    [void][HudProbe]::GetWindowRect($Window,[ref]$rect)
-    @{ visible = [HudProbe]::IsWindowVisible($Window); foreground = [HudProbe]::GetForegroundWindow().ToInt64(); exstyle = [HudProbe]::GetWindowLongPtrW($Window,-20).ToInt64(); rect = $rect }
+$exe=Get-Item -LiteralPath $Executable
+$portableRoot=$exe.DirectoryName
+if(-not(Test-Path (Join-Path $portableRoot '.hud-test-fixture'))){throw 'Expected an isolated, marked test runtime.'}
+New-Item -ItemType File (Join-Path $portableRoot '.portable') -Force|Out-Null
+$settingsFolder=Join-Path $portableRoot 'settings';New-Item -ItemType Directory $settingsFolder|Out-Null
+$settingsPath=Join-Path $settingsFolder 'settings.json'
+$receipts=Join-Path $EvidenceDirectory 'receipts';New-Item -ItemType Directory $receipts|Out-Null
+$profileId=[guid]::NewGuid().ToString('B')
+$fixtureSettings=@{
+ hudActiveOpacity=35;hudHorizontalPadding=48;hudVerticalPadding=24;initialCols=60;initialRows=20;defaultProfile=$profileId
+ disabledProfileSources=@('Microsoft.WSL','Windows.Terminal.PowershellCore','Windows.Terminal.Azure','Windows.Terminal.VisualStudio','Windows.Terminal.SSH')
+ profiles=@{list=@(@{guid=$profileId;name='HUD owned lifecycle fixture';commandline=('"'+(Join-Path $PSHOME 'pwsh.exe')+'" -NoProfile -ExecutionPolicy Bypass -File "'+(Join-Path $PSScriptRoot 'SmokeShell.ps1')+'" -Receipt "'+$receipts+'"');startingDirectory=$EvidenceDirectory;elevate=$false;opacity=65;useAcrylic=$false;scrollbarState='visible';showMarksOnScrollbar=$true;font=@{face='Consolas';size=18};background='#000000';foreground='#FFFFFF'})}
+ keybindings=@(@{keys='win+sc(41)';command='unbound'},@{keys='win+shift+sc(41)';command='unbound'},@{keys='alt+sc(41)';command='unbound'},@{keys='ctrl+alt+f13';id='Terminal.HudMode'},@{keys='ctrl+alt+f14';id='Terminal.HudVisibility'},@{keys='ctrl+alt+f6';id='Terminal.OpenSettingsUI'})
 }
-$exe = Get-Item -LiteralPath $Executable
-if (-not (Test-Path (Join-Path $exe.DirectoryName '.hud-test-fixture'))) { throw 'Expected an isolated runtime created by Test-HudModeDesktop.ps1.' }
-$portableRoot = $exe.DirectoryName
-New-Item -ItemType File -Path (Join-Path $portableRoot '.portable') -Force | Out-Null
-$settingsFolder = Join-Path $portableRoot 'settings'
-New-Item -ItemType Directory -Path $settingsFolder -Force | Out-Null
-$settingsPath = Join-Path $settingsFolder 'settings.json'
-if (Test-Path $settingsPath) { throw 'Use a fresh fixture directory; existing settings are preserved.' }
-$receipt = Join-Path $EvidenceDirectory ('shell-' + [guid]::NewGuid().ToString('N') + '.json')
-$profileId = [guid]::NewGuid().ToString('B')
-$fixtureSettings = @{
-    hudActiveOpacity=$ActiveOpacity
-    initialCols=60; initialRows=20
-    defaultProfile=$profileId
-    disabledProfileSources=@('Microsoft.WSL','Windows.Terminal.PowershellCore','Windows.Terminal.Azure','Windows.Terminal.VisualStudio','Windows.Terminal.SSH')
-    profiles=@{ list=@(@{
-        guid=$profileId; name='HUD owned smoke fixture'; commandline=('"' + (Join-Path $PSHOME 'pwsh.exe') + '" -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $PSScriptRoot 'SmokeShell.ps1') + '" -Receipt "' + $receipt + '"')
-        startingDirectory=$EvidenceDirectory; elevate=$false; opacity=65; useAcrylic=$false; font=@{face='Consolas';size=18}; background='#000000'; foreground='#FFFFFF'
-    }) }
-    keybindings=@(
-        @{keys='win+sc(41)';command='unbound'},
-        @{keys='win+shift+sc(41)';command='unbound'},
-        @{keys='win+ctrl+sc(41)';command='unbound'},
-        @{keys='alt+sc(41)';command='unbound'},
-        @{keys='ctrl+alt+f5';command=@{action='renameWindow';name='review-smoke'}},
-        @{keys='ctrl+alt+f7';command='toggleFullscreen'},
-        @{keys='ctrl+alt+f8';command=@{action='renameWindow';name='_quake'}},
-        @{keys='ctrl+alt+f6';command=@{action='globalSummon';name=$WindowName;toggleVisibility=$false;dropdownDuration=0;monitor='any'}},
-        @{keys='ctrl+alt+f13';id='Terminal.HudMode'},
-        @{keys='ctrl+alt+f14';id='Terminal.HudVisibility'},
-        @{keys='ctrl+alt+f15';id='Terminal.ToggleHudMode'},
-        @{keys='ctrl+alt+f9';command='closePane'}
-    )
-}
-$fixtureSettings | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $settingsPath -Encoding utf8NoBOM
-$background = [System.Windows.Forms.Form]::new()
-$background.Text='Owned HUD test background'
-$background.BackColor=[System.Drawing.Color]::FromArgb(40,160,220)
-$background.FormBorderStyle='None'
-$background.Bounds=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-$background.StartPosition='Manual'
-$script:fixtureClicks=0
-$background.Add_MouseDown({ $script:fixtureClicks++ })
-$originalCursor=[System.Windows.Forms.Cursor]::Position
-$background.Show()
-[void][HudProbe]::SetForegroundWindow($background.Handle)
-Wait-Ui
-$process=$null
-$script:additionalProcesses=@()
-try {
-    foreach ($key in @(0x74,0x75,0x76,0x77,0x78,0x7C,0x7D,0x7E)) {
-        if (-not [HudProbe]::RegisterHotKey([IntPtr]::Zero,$key,0x4003,$key)) { throw "Fixture shortcut is already occupied: $key" }
-        [void][HudProbe]::UnregisterHotKey([IntPtr]::Zero,$key)
-    }
-    $process=Start-Process -FilePath $exe.FullName -ArgumentList '-w',$WindowName,'-p',$profileId -WorkingDirectory $portableRoot -PassThru
-    $target=[IntPtr]::Zero
-    for ($attempt=0;$attempt -lt 150;$attempt++) {
-        Wait-Ui 100
-        if ($process.HasExited) { throw "Fork exited during startup: $($process.ExitCode)" }
-        foreach ($candidate in [HudProbe]::Windows($process.Id)) {
-            $class=[System.Text.StringBuilder]::new(256)
-            [void][HudProbe]::GetClassNameW($candidate,$class,256)
-            if ($class.ToString() -eq 'CASCADIA_HOSTING_WINDOW_CLASS' -and [HudProbe]::IsWindowVisible($candidate)) { $target=$candidate }
-        }
-        if ($target -ne [IntPtr]::Zero -and (Test-Path $receipt)) { break }
-    }
-    Assert-Probe ($target -ne [IntPtr]::Zero) 'owned HUD window appeared'
-    Assert-Probe (Test-Path $receipt) 'owned shell started'
-    Wait-Ui 1000
-    $normalBefore=$null
-    if ($ConvertExisting) {
-        $screens=@([System.Windows.Forms.Screen]::AllScreens)
-        $monitor=if ($screens.Count -gt 1) { @($screens | Where-Object { -not $_.Primary })[0] } else { $screens[0] }
-        $screen=$monitor.Bounds
-        $background.Bounds=$screen
-        [void][HudProbe]::SetWindowPos($target,[IntPtr]::Zero,$screen.Left+60,$screen.Top+60,[Math]::Min(900,$screen.Width-120),[Math]::Min(650,$screen.Height-140),20)
-        Wait-Ui 1000
-        $normalBefore=Read-State $target
-        Write-Output "Mode conversion monitor: $($monitor.DeviceName), exposed monitors: $($screens.Count)"
-        Invoke-ModeToggle
-        Wait-Ui 1000
-    } else {
-        $screen=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-    }
-    for ($ready=0; $ready -lt 50; $ready++) {
-        $state=Read-State $target
-        if (($state.exstyle -band 8) -ne 0 -and $state.foreground -eq $target.ToInt64()) { break }
-        Wait-Ui 100
-    }
-    Assert-Probe ($state.rect.Left -eq $screen.Left -and $state.rect.Top -eq $screen.Top -and $state.rect.Right -eq $screen.Right -and $state.rect.Bottom -eq $screen.Bottom) 'HUD covers the selected monitor'
-    Write-Output ('Initial HUD: HWND={0:X}, foreground={1:X}, extended style={2:X}' -f $target.ToInt64(),$state.foreground,$state.exstyle)
-    Assert-Probe (($state.exstyle -band 8) -ne 0) 'HUD is topmost'
-    Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'HUD started Active'
-    $initialControls=@(Get-TerminalBounds)
-    Assert-Probe ($initialControls.Count -eq 1) 'initial HUD exposes its terminal bounds'
-    $hudContentWithoutPadding=$initialControls[0]
-    $activeBitmap=[System.Drawing.Bitmap]::new($screen.Width,$screen.Height)
-    $activeGraphics=[System.Drawing.Graphics]::FromImage($activeBitmap)
-    try {
-        $activeGraphics.CopyFromScreen($screen.Location,[System.Drawing.Point]::Empty,$screen.Size)
-        $activeBitmap.Save((Join-Path $EvidenceDirectory 'active.png'))
-        $activeSample=$activeBitmap.GetPixel([int]($screen.Width/2),[int]($screen.Height/2))
-        Write-Output ('Active sample RGB: {0},{1},{2}' -f $activeSample.R,$activeSample.G,$activeSample.B)
-        Assert-BackgroundOpacity $ActiveOpacity
-    } finally { $activeGraphics.Dispose(); $activeBitmap.Dispose() }
-    Invoke-FixtureChord 0x76 # Ordinary fullscreen action cannot break HUD presentation.
-    Wait-Ui 300
-    $presentation=Read-State $target
-    Assert-Probe ($presentation.rect.Left -eq $screen.Left -and $presentation.rect.Top -eq $screen.Top -and $presentation.rect.Right -eq $screen.Right -and $presentation.rect.Bottom -eq $screen.Bottom) 'HUD retained fullscreen presentation after ordinary fullscreen action'
-    Invoke-FixtureChord 0x75 # Generic globalSummon must activate, never toggle.
-    Wait-Ui 400
-    Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target -and ((Read-State $target).exstyle -band 0x20) -eq 0) 'generic summon of HUD retains Active input'
-    Assert-NewWindowBelowHud $false 'Active'
-    Assert-NewWindowBelowHud $true 'Active-to-Passive'
-    Invoke-FixtureChord 0x7C
-    Wait-Ui 400
-    Assert-NewExplorerBelowHud 'Active-to-Passive'
-    Invoke-FixtureChord 0x7C
-    Wait-Ui 400
-    Invoke-FixtureChord 0x7C # F13
-    Wait-Ui 800
-    $state=Read-State $target
-    Assert-Probe ($state.visible -and ($state.exstyle -band 0x80020) -eq 0x80020) 'interaction shortcut made HUD Passive'
-    Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $background.Handle) 'Passive restored owned foreground'
-    $bitmap=[System.Drawing.Bitmap]::new($screen.Width,$screen.Height)
-    $graphics=[System.Drawing.Graphics]::FromImage($bitmap)
-    try {
-        $graphics.CopyFromScreen($screen.Location,[System.Drawing.Point]::Empty,$screen.Size)
-        $bitmap.Save((Join-Path $EvidenceDirectory 'passive.png'))
-        $sample=$bitmap.GetPixel([int]($screen.Width/2),[int]($screen.Height/2))
-        Assert-Probe ($sample.R -eq 40 -and $sample.G -eq 160 -and $sample.B -eq 220) 'Passive background is transparent over owned blue surface'
-        $white=0
-        for ($y=0;$y -lt [Math]::Min(350,$screen.Height);$y+=2) {
-            for ($x=0;$x -lt [Math]::Min(900,$screen.Width);$x+=2) {
-                $pixel=$bitmap.GetPixel($x,$y)
-                if ($pixel.R -ge 245 -and $pixel.G -ge 245 -and $pixel.B -ge 245) { $white++ }
-            }
-        }
-        Write-Output "Passive opaque-white text samples: $white"
-        Assert-Probe ($white -gt 1000) 'Passive text remains opaque and visible'
-    } finally { $graphics.Dispose(); $bitmap.Dispose() }
-    Assert-NewWindowBelowHud $true 'Passive'
-    Assert-NewExplorerBelowHud 'Passive'
-    $clickX=$screen.Left+[int]($screen.Width/2)
-    $clickY=$screen.Top+[int]($screen.Height/2)
-    $point=([long]$clickY -shl 32) -bor [long]$clickX
-    Assert-Probe ([HudProbe]::WindowFromPoint($point) -eq $background.Handle) 'native hit-test routes Passive pointer to owned background'
-    [void][HudProbe]::SetCursorPos($clickX,$clickY)
-    if ([HudProbe]::WindowFromPoint($point) -ne $background.Handle) { throw 'Owned sink moved before click; aborting injection.' }
-    Assert-HudDesktopIsolation -OwnedProcessIds (@($process.Id)+@($script:additionalProcesses | ForEach-Object Id))
-    [HudProbe]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
-    [HudProbe]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
-    Wait-Ui 200
-    Assert-Probe ($script:fixtureClicks -eq 1) 'one physical click reached owned background through Passive HUD'
-    Invoke-FixtureChord 0x7D # F14
-    Wait-Ui 500
-    Assert-Probe (-not [HudProbe]::IsWindowVisible($target)) 'visibility shortcut hid Passive'
-    Invoke-FixtureChord 0x7D
-    Wait-Ui 500
-    $state=Read-State $target
-    Assert-Probe ($state.visible -and ($state.exstyle -band 0x20) -ne 0 -and [HudProbe]::GetForegroundWindow() -eq $background.Handle) 'visibility shortcut restored Passive without activation'
-    Invoke-FixtureChord 0x7C
-    Wait-Ui 500
-    Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'interaction shortcut restored Active focus'
-    Invoke-FixtureChord 0x7D
-    Wait-Ui 500
-    Assert-Probe (-not [HudProbe]::IsWindowVisible($target)) 'visibility shortcut hid Active'
-    Invoke-FixtureChord 0x7D
-    Wait-Ui 500
-    Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'visibility shortcut restored Active focus'
-    $updatedOpacity=if ($ActiveOpacity -eq 35) { 65 } else { 35 }
-    $updatedSettings=Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
-    $updatedSettings | Add-Member -NotePropertyName hudActiveOpacity -NotePropertyValue $updatedOpacity -Force
-    $updatedSettings | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $settingsPath -Encoding utf8NoBOM
-    Wait-Ui 1500
-    Assert-BackgroundOpacity $updatedOpacity
-    Invoke-FixtureChord 0x7C
-    Wait-Ui 600
-    Assert-Probe ((Read-State $target).exstyle -band 0x20) 'opacity reload preserved Passive input behavior'
-    Invoke-FixtureChord 0x7C
-    Wait-Ui 600
-    Assert-BackgroundOpacity $updatedOpacity
-    $shell=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
-    Assert-Probe ($null -ne (Get-Process -Id $shell.pid -ErrorAction SilentlyContinue)) 'same shell survived all transitions'
-    if ([HudProbe]::GetForegroundWindow() -ne $target) { throw 'HUD lost focus before Escape test.' }
-    [HudProbe]::keybd_event(0x1B,0,0,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event(0x1B,0,2,[UIntPtr]::Zero)
-    Wait-Ui 500
-    $delivered=Test-Path ($receipt + '.keys')
-    if ($delivered) { $delivered=@(Get-Content -LiteralPath ($receipt + '.keys')) -contains '27' }
-    Assert-Probe $delivered 'Escape passed through to the running terminal program'
-    Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'Escape did not change HUD interaction state'
-    Invoke-ModeToggle
-    Wait-Ui 800
-    $normalAfter=Read-State $target
-    Write-Output ("Normal bounds after: {0},{1} to {2},{3}; monitor: {4}x{5}" -f $normalAfter.rect.Left,$normalAfter.rect.Top,$normalAfter.rect.Right,$normalAfter.rect.Bottom,$screen.Width,$screen.Height)
-    Assert-Probe ($normalAfter.visible -and ($normalAfter.exstyle -band 0x20) -eq 0) 'leaving HUD restored visible normal input'
-    Assert-Probe ([HudProbe]::GetForegroundWindow() -eq $target) 'leaving HUD retained focus'
-    if ($normalBefore) {
-        Assert-Probe ($normalAfter.rect.Left -eq $normalBefore.rect.Left -and $normalAfter.rect.Top -eq $normalBefore.rect.Top -and $normalAfter.rect.Right -eq $normalBefore.rect.Right -and $normalAfter.rect.Bottom -eq $normalBefore.rect.Bottom) 'leaving HUD restored exact previous bounds'
-        Assert-Probe (($normalAfter.exstyle -band 8) -eq ($normalBefore.exstyle -band 8)) 'leaving HUD restored previous topmost policy'
-    } else {
-        Assert-Probe (($normalAfter.rect.Right-$normalAfter.rect.Left) -lt $screen.Width) 'fresh HUD can return to normal window size'
-    }
-    Assert-BackgroundOpacity 65 ([int](($normalAfter.rect.Left+$normalAfter.rect.Right)/2)) ($normalAfter.rect.Bottom-80) 'Normal'
-    Assert-Probe ($null -ne (Get-Process -Id $shell.pid -ErrorAction SilentlyContinue)) 'same shell survived leaving HUD mode'
-    Assert-SingleHudAcrossInstances
-    [void][HudProbe]::SetForegroundWindow($background.Handle)
-    Wait-Ui 200
-    Invoke-ModeToggle
-    Wait-Ui 300
-    Assert-Probe (((Read-State $target).exstyle -band 0x28) -eq 0 -and [HudProbe]::GetForegroundWindow() -eq $background.Handle) 'mode toggle did nothing with no HUD and another app focused'
-    [void][HudProbe]::SetForegroundWindow($target)
-    foreach ($prior in @('Passive','HiddenPassive','HiddenActive')) {
-        Invoke-ModeToggle
-        Wait-Ui 300
-        if ($prior -ne 'HiddenActive') { Invoke-FixtureChord 0x7C;Wait-Ui 300 }
-        if ($prior -ne 'Passive') { Invoke-FixtureChord 0x7D;Wait-Ui 300 }
-        Invoke-ModeToggle
-        Wait-Ui 500
-        $ordinary=Read-State $target
-        Assert-Probe ($ordinary.visible -and ($ordinary.exstyle -band 0x8000028) -eq 0 -and [HudProbe]::GetForegroundWindow() -eq $target) "global mode toggle exited $prior and restored the ordinary focused window"
-        Assert-Probe ($null -ne (Get-Process -Id $shell.pid -ErrorAction SilentlyContinue)) "$prior mode exit preserved the shell"
-    }
-    Invoke-FixtureChord 0x7C
-    Invoke-FixtureChord 0x7D
-    Wait-Ui 300
-    $withoutHud=Read-State $target
-    Assert-Probe (($withoutHud.exstyle -band 0x28) -eq 0 -and $withoutHud.rect.Equals($normalAfter.rect)) 'global HUD actions left an ordinary window unchanged'
-    Invoke-ModeToggle
-    Wait-Ui 800
-    $again=Read-State $target
-    Assert-Probe ($again.rect.Left -eq $screen.Left -and $again.rect.Top -eq $screen.Top -and $again.rect.Right -eq $screen.Right -and $again.rect.Bottom -eq $screen.Bottom) 'mode toggle re-entered HUD on the same monitor'
-    Invoke-ModeToggle
-    Wait-Ui 500
-    # Exercise a queued activation concurrently with a local mode change.
-    for ($cycle=0;$cycle -lt 8;$cycle++) {
-        Invoke-ModeToggle
-        Wait-Ui 200
-        Invoke-FixtureChord 0x75
-        Invoke-ModeToggle
-        Wait-Ui 300
-        $ordinary=Read-State $target
-        Assert-Probe (($ordinary.exstyle -band 0x20) -eq 0 -and ($ordinary.rect.Right-$ordinary.rect.Left) -lt $screen.Width) 'queued summon did not restore HUD after leaving its mode'
-    }
-    # Use a wide window so the Settings navigation pane is expanded. Placement
-    # restoration was verified above before changing the fixture geometry.
-    [void][HudProbe]::SetWindowPos($target,[IntPtr]::Zero,$screen.Left+80,$screen.Top+80,$screen.Width-160,$screen.Height-160,20)
-    Wait-Ui 500
-    Invoke-ModeToggle
-    Wait-Ui 300
-    # Opening Settings from HUD must return to ordinary window presentation.
-    # Exercise the real settings control and its save path in this private copy.
-    if ([HudProbe]::GetForegroundWindow() -ne $target) { throw 'Settings test requires the owned Terminal to be focused.' }
-    [HudProbe]::keybd_event(0x11,0,0,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event(0xBC,0,0,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event(0xBC,0,2,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event(0x11,0,2,[UIntPtr]::Zero)
-    Wait-Ui 1000
-    $root=[System.Windows.Automation.AutomationElement]::FromHandle($target)
-    $appearance=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty,'AppearanceNavItem'))
-    Assert-Probe ($null -ne $appearance) 'Appearance settings navigation is accessible'
-    $settingsState=Read-State $target
-    Assert-Probe (($settingsState.exstyle -band 0x28) -eq 0 -and ($settingsState.rect.Right-$settingsState.rect.Left) -lt $screen.Width) 'opening Settings left HUD and restored ordinary input/presentation'
-    ([System.Windows.Automation.SelectionItemPattern]$appearance.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)).Select()
-    Wait-Ui 600
-    $opacityControls=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'HUD Active opacity (%)'))
-    $input=$null
-    foreach ($control in $opacityControls) {
-        Write-Output "Opacity UI control: $($control.Current.ControlType.ProgrammaticName) / $($control.Current.AutomationId)"
-        $candidate=$control.FindFirst([System.Windows.Automation.TreeScope]::Subtree,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Edit))
-        if ($candidate) { $input=$candidate; break }
-    }
-    Assert-Probe ($null -ne $input) 'HUD Active opacity input is exposed in Appearance'
-    $horizontalInput=Get-HudPaddingField $root 'HUD horizontal padding'
-    $verticalInput=Get-HudPaddingField $root 'HUD vertical padding'
-    $save=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty,'SaveButton'))
-    Assert-Probe ($null -ne $save) 'Settings save button is accessible'
-    $input.SetFocus()
-    ([System.Windows.Automation.ValuePattern]$input.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)).SetValue('47')
-    if ([HudProbe]::GetForegroundWindow() -ne $target) { throw 'Focus left the fixture before committing the opacity field.' }
-    [HudProbe]::keybd_event(9,0,0,[UIntPtr]::Zero)
-    [HudProbe]::keybd_event(9,0,2,[UIntPtr]::Zero)
-    Wait-Ui 200
-    Set-HudPaddingField $horizontalInput '48'
-    Set-HudPaddingField $verticalInput '24'
-    ([System.Windows.Automation.InvokePattern]$save.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke()
-    Wait-Ui 800
-    $savedSettings=Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
-    Assert-Probe ($savedSettings.hudActiveOpacity -eq 47) 'Appearance UI saved the requested HUD opacity'
-    Assert-Probe ($savedSettings.hudHorizontalPadding -eq 48 -and $savedSettings.hudVerticalPadding -eq 24) 'Appearance UI saved horizontal and vertical HUD padding'
-    # Select the terminal tab explicitly, as a user would before entering HUD.
-    $tabs=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::TabItem))
-    $terminalTab=$null
-    foreach ($tab in $tabs) {
-        if ($tab.Current.Name -eq 'HUD owned smoke fixture') { $terminalTab=$tab; break }
-    }
-    Assert-Probe ($null -ne $terminalTab) 'existing terminal tab is available for manual selection'
-    ([System.Windows.Automation.SelectionItemPattern]$terminalTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)).Select()
-    Wait-Ui 300
-    $normalContentBeforePadding=@(Get-TerminalBounds)[0]
-    Invoke-ModeToggle
-    Wait-Ui 500
-    Assert-HudPadding 48 24
-    $paddingScale=[HudProbe]::GetDpiForWindow($target)/96.0
-    Assert-BackgroundOpacity 0 ($screen.Left+[int](20*$paddingScale)) ($screen.Top+[int](10*$paddingScale)) 'Active HUD outer padding'
-    Assert-BackgroundOpacity 47
-    $afterSettings=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
-    Assert-Probe ($afterSettings.pid -eq $shell.pid) 'HUD return from Settings reused the existing terminal session'
-    Invoke-FixtureChord 0x7C
-    Wait-Ui 400
-    Assert-BackgroundOpacity 0 -Context 'Passive terminal after Settings'
-    Assert-HudPaddingReloadAndRestore
-    Invoke-ModeToggle
-    Wait-Ui 300
-    Invoke-FixtureChord 0x77 # Rename to the reserved Quake name.
-    Wait-Ui 500
-    $quake=Read-State $target
-    Assert-Probe (($quake.exstyle -band 0x20) -eq 0 -and ($quake.rect.Bottom-$quake.rect.Top) -lt $screen.Height) 'renaming HUD to Quake released HUD input and sizing'
-    Invoke-ModeToggle
-    Wait-Ui 300
-    $stillQuake=Read-State $target
-    Assert-Probe (($stillQuake.rect.Bottom-$stillQuake.rect.Top) -lt $screen.Height) 'Quake refused simultaneous HUD mode'
-    Invoke-FixtureChord 0x74 # Rename to an ordinary window again.
-    Wait-Ui 300
-    Invoke-ModeToggle
-    Wait-Ui 400
-    $backToHud=Read-State $target
-    Assert-Probe ($backToHud.rect.Left -eq $screen.Left -and $backToHud.rect.Top -eq $screen.Top -and $backToHud.rect.Right -eq $screen.Right -and $backToHud.rect.Bottom -eq $screen.Bottom) 'ordinary renamed window can enter HUD again'
-    Invoke-ModeToggle
-    Wait-Ui 300
-    Write-Output 'DESKTOP_SMOKE_PASSED'
-} finally {
-    if ($process -and -not $process.HasExited) {
-        # Target only our exact fixture process; never close installed Terminal.
-        $process.Kill($true)
-        $process.WaitForExit(5000) | Out-Null
-    }
-    [void][HudProbe]::SetCursorPos($originalCursor.X,$originalCursor.Y)
-    $background.Close()
-    $background.Dispose()
+$fixtureSettings|ConvertTo-Json -Depth 20|Set-Content -LiteralPath $settingsPath -Encoding utf8NoBOM
+$screen=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$background=[System.Windows.Forms.Form]::new();$background.Text='Owned HUD lifecycle background';$background.FormBorderStyle='None';$background.StartPosition='Manual';$background.Bounds=$screen;$background.BackColor=[System.Drawing.Color]::FromArgb(40,160,220)
+$script:clicks=0;$background.Add_MouseDown({$script:clicks++})
+$cursor=[System.Windows.Forms.Cursor]::Position
+$process=$null;$second=$null;$script:additionalProcesses=@()
+try{
+ foreach($key in @(0x75,0x7C,0x7D)){if(-not[HudProbe]::RegisterHotKey([IntPtr]::Zero,$key,0x4003,$key)){throw 'A fixture shortcut is occupied.'};[void][HudProbe]::UnregisterHotKey([IntPtr]::Zero,$key)}
+ $background.Show();[void][HudProbe]::SetForegroundWindow($background.Handle);Wait-Ui 200
+ $process=Start-Process -FilePath $exe.FullName -ArgumentList '-w','hud-lifecycle-seed','-p',$profileId -WorkingDirectory $portableRoot -PassThru
+ $normal=Wait-NewWindow $process;Wait-Ui 1000
+ $normalShell=@(Shell-Records)[0].pid
+ Assert-Probe ($null -ne $normalShell) 'normal terminal shell started'
+ [void][HudProbe]::SetWindowPos($normal,[IntPtr]::Zero,$screen.Left+60,$screen.Top+60,900,650,0x14);Wait-Ui 300
+ $before=Read-State $normal
+ Invoke-FixtureChord 0x7C;Wait-Ui 200
+ Assert-Probe (@([HudProbe]::Windows($process.Id)).Count -eq 1 -and ((Read-State $normal).exstyle -band 0x28) -eq 0) 'interaction with no HUD left the normal terminal unchanged'
+ [void][HudProbe]::SetCursorPos($screen.Right-40,$screen.Bottom-80)
+ Invoke-FixtureChord 0x7D
+ $target=Wait-NewWindow $process @($normal);Wait-Ui 700
+ $hudShell=@(Shell-Records|Where-Object pid -ne $normalShell)[0].pid
+ Assert-Probe ($null -ne $hudShell -and $hudShell -ne $normalShell) 'summon created a dedicated HUD with its own shell'
+ Assert-Probe (((Read-State $target).exstyle -band 8) -ne 0 -and [HudProbe]::GetForegroundWindow() -eq $target) 'new HUD is Active and topmost'
+ Assert-Probe ((Read-State $normal).rect.Equals($before.rect) -and ((Read-State $normal).exstyle -band 0x28) -eq 0) 'normal terminal retained its bounds and ordinary presentation'
+ Assert-Opacity 35
+ Invoke-FixtureChord 0x7D;Wait-Ui 500
+ Assert-Probe (-not [HudProbe]::IsWindowVisible($target)) 'same-monitor Active summon hid HUD'
+ Invoke-FixtureChord 0x7C;Wait-Ui 200
+ Assert-Probe (-not [HudProbe]::IsWindowVisible($target)) 'interaction did not expose a hidden HUD'
+ Invoke-FixtureChord 0x7D;Wait-Ui 500
+ Assert-Probe ([HudProbe]::IsWindowVisible($target) -and [HudProbe]::GetForegroundWindow() -eq $target) 'summon restored Hidden HUD as Active'
+ Invoke-FixtureChord 0x7C;Wait-Ui 300
+ Assert-Probe (((Read-State $target).exstyle -band 0x8000020) -eq 0x8000020) 'interaction made the visible HUD Passive'
+ Assert-Opacity 0
+ [void][HudProbe]::SetForegroundWindow($background.Handle);Wait-Ui 150
+ [void][HudProbe]::SetCursorPos($screen.Right-40,$screen.Bottom-80)
+ Assert-HudDesktopIsolation -OwnedProcessIds @($process.Id)
+ [HudProbe]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[HudProbe]::mouse_event(4,0,0,0,[UIntPtr]::Zero);Wait-Ui 200
+ Assert-Probe ($script:clicks -eq 1) 'Passive pointer input reached the owned background'
+ Invoke-FixtureChord 0x7D;Wait-Ui 500
+ Assert-Probe ([HudProbe]::IsWindowVisible($target) -and [HudProbe]::GetForegroundWindow() -eq $target) 'summoning Passive HUD activated it instead of hiding it'
+ $bounds=Read-State $target
+ Invoke-FixtureChord 0x7C;Wait-Ui 200;Invoke-FixtureChord 0x7C;Wait-Ui 300
+ Assert-Probe ((Read-State $target).rect.Equals($bounds.rect)) 'interaction did not move HUD'
+ # Different executable paths prove sole-owner activation across processes.
+ $secondRoot=Join-Path $EvidenceDirectory 'second-runtime'
+ & robocopy.exe $portableRoot $secondRoot /E /XD settings /R:1 /W:1 /NFL /NDL /NJH /NJS /NP|Out-Null
+ if($LASTEXITCODE -ge 8){throw 'Secondary runtime copy failed.'}
+ New-Item -ItemType Directory (Join-Path $secondRoot 'settings')|Out-Null
+ $fixtureSettings|ConvertTo-Json -Depth 20|Set-Content -LiteralPath (Join-Path $secondRoot 'settings\settings.json') -Encoding utf8NoBOM
+ $secondExe=Join-Path $secondRoot 'WindowsTerminal.exe'
+ $second=Start-Process -FilePath $secondExe -ArgumentList '-w','hud-second-seed','-p',$profileId -PassThru
+ $script:additionalProcesses=@($second)
+ $secondWindow=Wait-NewWindow $second;Wait-Ui 500
+ & $secondExe -w _hud
+ Wait-Ui 600
+ Assert-Probe (@([HudProbe]::Windows($second.Id)).Count -eq 1 -and @([HudProbe]::Windows($process.Id)).Count -eq 2 -and [HudProbe]::GetForegroundWindow() -eq $target) 'second process activated the sole HUD without creating another'
+ [void][HudProbe]::PostMessageW($secondWindow,0x10,[IntPtr]::Zero,[IntPtr]::Zero);Wait-Ui 300
+ if(-not $second.HasExited){$second.Kill($true);[void]$second.WaitForExit(5000)}
+ $script:additionalProcesses=@()
+ [void][HudProbe]::SetForegroundWindow($target);Wait-Ui 150
+ $shellCount=@(Shell-Records).Count
+ Invoke-FixtureChord 0x75
+ $settingsWindow=Wait-NewWindow $process @($normal,$target);Wait-Ui 500
+ Assert-Probe (((Read-State $settingsWindow).exstyle -band 0x28) -eq 0) 'Settings opened in a separate ordinary window'
+ Assert-Probe (((Read-State $target).exstyle -band 0x8000028) -eq 0x8000028 -and [HudProbe]::IsWindowVisible($target)) 'HUD retained its role and became Passive while Settings had focus'
+ Assert-Probe (@(Shell-Records).Count -eq $shellCount -and $null -ne (Get-Process -Id $hudShell -ErrorAction SilentlyContinue)) 'Settings preserved the HUD shell without starting an extra shell'
+ [void][HudProbe]::SetWindowPos($settingsWindow,[IntPtr]::Zero,$screen.Left+80,$screen.Top+80,$screen.Width-160,$screen.Height-160,0x14);Wait-Ui 400
+ $root=[System.Windows.Automation.AutomationElement]::FromHandle($settingsWindow)
+ $appearance=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty,'AppearanceNavItem'))
+ Assert-Probe ($null -ne $appearance) 'separate Settings window exposes Appearance'
+ ([System.Windows.Automation.SelectionItemPattern]$appearance.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)).Select();Wait-Ui 400
+ $horizontal=Get-HudPaddingField $root 'HUD horizontal padding';$vertical=Get-HudPaddingField $root 'HUD vertical padding'
+ $save=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty,'SaveButton'))
+ Set-HudPaddingField $horizontal '64';Set-HudPaddingField $vertical '32'
+ ([System.Windows.Automation.InvokePattern]$save.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke();Wait-Ui 1000
+ $saved=Get-Content -LiteralPath $settingsPath -Raw|ConvertFrom-Json
+ Assert-Probe ($saved.hudHorizontalPadding -eq 64 -and $saved.hudVerticalPadding -eq 32) 'separate Settings window saved HUD padding'
+ Invoke-FixtureChord 0x7D;Wait-Ui 500
+ $content=@(Get-TerminalBounds)[0];$scale=[HudProbe]::GetDpiForWindow($target)/96.0
+ Assert-Probe ([Math]::Abs($content.Left-($screen.Left+64*$scale)) -le 2 -and [Math]::Abs($content.Top-($screen.Top+32*$scale)) -le 2) 'existing HUD applied the saved DPI-aware padding'
+ [void][HudProbe]::PostMessageW($settingsWindow,0x10,[IntPtr]::Zero,[IntPtr]::Zero);Wait-Ui 300
+ [void][HudProbe]::PostMessageW($target,0x10,[IntPtr]::Zero,[IntPtr]::Zero);Wait-Ui 600
+ Assert-Probe (-not [HudProbe]::IsWindow($target) -and $null -eq (Get-Process -Id $hudShell -ErrorAction SilentlyContinue)) 'closing HUD ended its shell'
+ Assert-Probe ([HudProbe]::IsWindow($normal) -and $null -ne (Get-Process -Id $normalShell -ErrorAction SilentlyContinue)) 'closing HUD retained the ordinary terminal and its shell'
+ [void][HudProbe]::SetForegroundWindow($background.Handle);Wait-Ui 100
+ Invoke-FixtureChord 0x7D
+ $replacement=Wait-NewWindow $process @($normal);Wait-Ui 500
+ Assert-Probe ($replacement -ne $target -and ((Read-State $replacement).exstyle -band 8) -ne 0) 'global summon recreated HUD while an ordinary window kept the fork running'
+ Assert-Probe ((Read-State $normal).rect.Equals($before.rect)) 'normal terminal remained unchanged throughout HUD lifecycle'
+ Write-Output 'DESKTOP_SMOKE_PASSED'
+}finally{
+ if($second -and -not $second.HasExited){$second.Kill($true);[void]$second.WaitForExit(5000)}
+ if($process -and -not $process.HasExited){$process.Kill($true);[void]$process.WaitForExit(5000)}
+ [void][HudProbe]::SetCursorPos($cursor.X,$cursor.Y)
+ $background.Close();$background.Dispose()
 }

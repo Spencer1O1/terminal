@@ -16,9 +16,8 @@ namespace Microsoft::Terminal::Hud
     enum class Request : WPARAM
     {
         Activate = 1,
-        ToggleMode,
-        ToggleInteraction,
-        ToggleVisibility,
+        ToggleInteraction = 3,
+        ToggleVisibility = 4,
     };
 
     class Ownership
@@ -27,7 +26,7 @@ namespace Microsoft::Terminal::Hud
         explicit Ownership(const std::wstring_view scope = L"WindowsTerminalHUD.HudOwner") :
             _sid{ _userSid() },
             _name{ L"Local\\" + std::wstring{ scope } + L"." + _sid },
-            _message{ RegisterWindowMessageW((_name + L".Request.v1").c_str()) }
+            _message{ RegisterWindowMessageW((_name + L".Request.v2").c_str()) }
         {
             if (!_message)
             {
@@ -152,7 +151,9 @@ namespace Microsoft::Terminal::Hud
 
         static constexpr bool IsRequest(WPARAM value) noexcept
         {
-            return value >= static_cast<WPARAM>(Request::Activate) && value <= static_cast<WPARAM>(Request::ToggleVisibility);
+            return value == static_cast<WPARAM>(Request::Activate) ||
+                   value == static_cast<WPARAM>(Request::ToggleInteraction) ||
+                   value == static_cast<WPARAM>(Request::ToggleVisibility);
         }
 
     private:

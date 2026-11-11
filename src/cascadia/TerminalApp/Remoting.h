@@ -53,7 +53,6 @@ namespace winrt::TerminalApp::implementation
         SummonWindowBehavior() = default;
         WINRT_PROPERTY(bool, MoveToCurrentDesktop, true);
         WINRT_PROPERTY(bool, ToggleVisibility, true);
-        WINRT_PROPERTY(bool, ToggleHudInteraction, false);
         WINRT_PROPERTY(uint32_t, DropdownDuration, 0);
         WINRT_PROPERTY(MonitorBehavior, ToMonitor, MonitorBehavior::ToCurrent);
 
@@ -62,8 +61,7 @@ namespace winrt::TerminalApp::implementation
             _MoveToCurrentDesktop{ other.MoveToCurrentDesktop() },
             _ToMonitor{ other.ToMonitor() },
             _DropdownDuration{ other.DropdownDuration() },
-            _ToggleVisibility{ other.ToggleVisibility() },
-            _ToggleHudInteraction{ other.ToggleHudInteraction() } {};
+            _ToggleVisibility{ other.ToggleVisibility() } {};
     };
 
     struct WindowRequestedArgs : public WindowRequestedArgsT<WindowRequestedArgs>

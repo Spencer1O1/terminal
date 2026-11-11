@@ -2611,7 +2611,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (_hudEnabled && sender == _GetFocusedTab() && !_IsTerminalTab(sender))
         {
-            HudActionRequested.raise(*this, winrt::Microsoft::Terminal::Settings::Model::ShortcutAction::ToggleHudMode);
+            ExitHudRequested.raise(*this, nullptr);
         }
         if (const auto tab{ _GetTabImpl(sender) })
         {
@@ -4558,6 +4558,18 @@ namespace winrt::TerminalApp::implementation
     // - <none>
     void TerminalPage::OpenSettingsUI()
     {
+        if (_hudEnabled)
+        {
+            // Keep the dedicated HUD's terminal sessions and presentation intact.
+            // The normal window's existing startup-action path opens Settings.
+            WindowRequestedArgs request{ 0, CommandlineArgs{} };
+            OpenSettingsArgs settings{ SettingsTarget::SettingsUI };
+            ActionAndArgs action{ ShortcutAction::OpenSettings, settings };
+            request.StartupActions(winrt::single_threaded_vector<ActionAndArgs>({ std::move(action) }));
+            RequestNewWindow.raise(*this, request);
+            return;
+        }
+
         // If we're holding the settings tab's switch command, don't create a new one, switch to the existing one.
         if (!_settingsTab)
         {

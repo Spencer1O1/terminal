@@ -85,9 +85,6 @@ void WindowEmperor::RequestHudAction(const ShortcutAction action)
     Request request;
     switch (action)
     {
-    case ShortcutAction::ToggleHudMode:
-        request = Request::ToggleMode;
-        break;
     case ShortcutAction::HudMode:
         request = Request::ToggleInteraction;
         break;
@@ -97,22 +94,11 @@ void WindowEmperor::RequestHudAction(const ShortcutAction action)
     default:
         return;
     }
-    if (_forwardHudRequest(request) || request != Request::ToggleMode)
+    if (_forwardHudRequest(request) || request != Request::ToggleVisibility)
     {
         return;
     }
-    const auto foreground = GetForegroundWindow();
-    for (const auto& candidate : _windows)
-    {
-        if (candidate->IsInitialized() && candidate->GetWindow()->GetHandle() == foreground)
-        {
-            // Native mode changes can pump messages. Retain this window across
-            // the call even if a reentrant close removes it from _windows.
-            const auto host = candidate;
-            host->Logic().HudModeEnabled(true);
-            return;
-        }
-    }
+    _createNamedWindow(L"_hud");
 }
 
 void WindowEmperor::_handleHudRequest(const Request request)
@@ -127,21 +113,16 @@ void WindowEmperor::_handleHudRequest(const Request request)
         _pendingHudRequests.emplace_back(_hudOwnershipEpoch, request);
         return;
     }
-    if (request == Request::ToggleMode)
+    if (request == Request::ToggleVisibility)
     {
-        host->Logic().HudModeEnabled(false);
-        winrt::TerminalApp::SummonWindowBehavior behavior;
-        behavior.ToggleVisibility(false);
-        behavior.ToMonitor(winrt::TerminalApp::MonitorBehavior::InPlace);
-        // Exiting Passive or Hidden also restores and activates the ordinary window.
-        host->HandleSummon(behavior);
+        // Share Quake's actual summon defaults and monitor/activation behavior.
+        static const auto quake = winrt::Microsoft::Terminal::Settings::Model::ActionAndArgs::Deserialize(LR"({"actions":["quakeMode"]})").GetAt(0).Args().as<winrt::Microsoft::Terminal::Settings::Model::GlobalSummonArgs>();
+        host->HandleSummon(_makeSummonArgs(quake).SummonBehavior);
     }
     else
     {
         using Microsoft::Terminal::Hud::Action;
-        host->ApplyHudAction(request == Request::ToggleInteraction ? Action::ToggleInteraction :
-                             request == Request::ToggleVisibility  ? Action::ToggleVisibility :
-                                                                     Action::Activate);
+        host->ApplyHudAction(request == Request::ToggleInteraction ? Action::ToggleInteraction : Action::Activate);
     }
 }
 

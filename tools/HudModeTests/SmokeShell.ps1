@@ -1,5 +1,7 @@
 param([string]$Receipt)
 $ErrorActionPreference = 'Stop'
+if (Test-Path -LiteralPath $Receipt -PathType Container) { $Receipt=Join-Path $Receipt ('shell-'+$PID+'.json') }
+[Console]::Title='HUD owned shell '+$PID
 @{ pid = $PID; started = [DateTime]::UtcNow.ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $Receipt
 [Console]::Write("`e[2J`e[H`e[38;2;255;255;255;48;2;0;0;0m")
 # Alternating colors keep both markers visible after short-window scrollback

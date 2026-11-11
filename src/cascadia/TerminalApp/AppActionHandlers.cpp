@@ -1110,12 +1110,6 @@ namespace winrt::TerminalApp::implementation
         // if it wasn't bound at all.
         args.Handled(false);
     }
-    void TerminalPage::_HandleToggleHudMode(const IInspectable&, const ActionEventArgs& args)
-    {
-        HudActionRequested.raise(*this, ShortcutAction::ToggleHudMode);
-        args.Handled(true);
-    }
-
     void TerminalPage::_HandleHudMode(const IInspectable&, const ActionEventArgs& args)
     {
         HudActionRequested.raise(*this, ShortcutAction::HudMode);

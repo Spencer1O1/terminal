@@ -527,14 +527,11 @@
   <data name="GlobalSummonCommandKey" xml:space="preserve">
     <value>Show/Hide the Terminal window</value>
   </data>
-  <data name="ToggleHudModeCommandKey" xml:space="preserve">
-    <value>Toggle HUD mode</value>
-  </data>
   <data name="HudModeCommandKey" xml:space="preserve">
     <value>Toggle HUD interaction</value>
   </data>
   <data name="HudVisibilityCommandKey" xml:space="preserve">
-    <value>Toggle HUD visibility</value>
+    <value>Show/Hide the HUD window</value>
   </data>
   <data name="QuakeModeCommandKey" xml:space="preserve">
     <value>Show/Hide Quake window</value>
