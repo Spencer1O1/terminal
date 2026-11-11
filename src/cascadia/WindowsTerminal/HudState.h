@@ -13,7 +13,7 @@ namespace Microsoft::Terminal::Hud
     enum class Action
     {
         ToggleInteraction,
-        ToggleVisibility,
+        Hide,
         Activate,
         Deactivate,
     };
@@ -23,25 +23,19 @@ namespace Microsoft::Terminal::Hud
     {
     public:
         constexpr State Current() const noexcept { return _state; }
-        constexpr State Remembered() const noexcept { return _remembered; }
 
         constexpr State Apply(const Action action) noexcept
         {
             switch (action)
             {
             case Action::ToggleInteraction:
-                _state = _state == State::Active ? State::Passive : State::Active;
+                if (_state != State::Hidden)
+                {
+                    _state = _state == State::Active ? State::Passive : State::Active;
+                }
                 break;
-            case Action::ToggleVisibility:
-                if (_state == State::Hidden)
-                {
-                    _state = _remembered;
-                }
-                else
-                {
-                    _remembered = _state;
-                    _state = State::Hidden;
-                }
+            case Action::Hide:
+                _state = State::Hidden;
                 break;
             case Action::Activate:
                 _state = State::Active;
@@ -58,6 +52,5 @@ namespace Microsoft::Terminal::Hud
 
     private:
         State _state{ State::Active };
-        State _remembered{ State::Active };
     };
 }

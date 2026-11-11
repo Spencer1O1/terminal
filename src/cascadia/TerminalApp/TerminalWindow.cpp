@@ -681,11 +681,6 @@ namespace winrt::TerminalApp::implementation
     // - a point containing the requested initial position in pixels.
     TerminalApp::InitialPosition TerminalWindow::GetInitialPosition(int64_t defaultInitialX, int64_t defaultInitialY)
     {
-        if (IsHudWindow())
-        {
-            return { 0, 0 }; // Windows places the primary monitor at the desktop origin.
-        }
-
         auto initialPosition{ _settings.GlobalSettings().InitialPosition() };
 
         if (const auto layout = LoadPersistedLayout())
@@ -1068,6 +1063,9 @@ namespace winrt::TerminalApp::implementation
     void TerminalWindow::SetStartupActions(const IVector<ActionAndArgs>& actions)
     {
         _initialContentArgs = wil::to_vector(actions);
+        // Explicit actions (including a Settings-only window) take precedence
+        // over startupActions from settings after Initialize consumes the vector.
+        _gotSettingsStartupActions = false;
     }
 
     // Method Description:

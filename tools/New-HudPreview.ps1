@@ -31,8 +31,7 @@ if ($UseTemporaryHudKeys) {
         @{ keys = 'win+sc(41)'; command = 'unbound' },
         @{ keys = 'win+shift+sc(41)'; command = 'unbound' },
         @{ keys = 'ctrl+alt+f9'; id = 'Terminal.HudMode' },
-        @{ keys = 'ctrl+alt+f10'; id = 'Terminal.HudVisibility' },
-        @{ keys = 'win+ctrl+sc(41)'; id = 'Terminal.ToggleHudMode' }
+        @{ keys = 'ctrl+alt+f10'; id = 'Terminal.HudVisibility' }
     )
 }
 $destination = (New-Item -ItemType Directory -Path $DestinationDirectory).FullName
@@ -56,9 +55,8 @@ Windows Terminal with optional HUD mode
 Open Start-Terminal.lnk. It opens an ordinary Terminal window using a private
 copy of your settings. Installed Terminal settings and OS defaults are unchanged.
 
-Win+Ctrl+Backtick: switch the focused Terminal between normal and HUD mode.
-$interactionKey`: toggle HUD Active/Passive; activate when hidden.
-$visibilityKey`: hide/restore HUD.
+$interactionKey`: toggle visible HUD Active/Passive.
+$visibilityKey`: create/summon/hide the dedicated HUD, like Quake.
 Alt+Backtick: Quake. Escape passes through.
 
 Change bindings in Settings > Actions.

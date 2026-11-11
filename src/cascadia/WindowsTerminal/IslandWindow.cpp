@@ -1606,6 +1606,12 @@ void IslandWindow::_moveToMonitor(const MONITORINFO activeMonitor)
     const til::rect activeRect{ activeMonitor.rcMonitor };
     if (currentRect != activeRect)
     {
+        if (_fullscreen)
+        {
+            SetWindowPos(GetHandle(), nullptr, activeRect.left, activeRect.top,
+                         activeRect.width(), activeRect.height(), SWP_NOZORDER | SWP_NOACTIVATE);
+            return;
+        }
         const til::rect currentWindowRect{ GetWindowRect() };
         const auto offset{ currentWindowRect.origin() - currentRect.origin() };
         const auto newOrigin{ activeRect.origin() + offset };

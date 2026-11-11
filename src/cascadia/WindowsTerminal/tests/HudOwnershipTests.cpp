@@ -19,7 +19,7 @@ static LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wparam, LPA
     {
         ++requests;
         if (acknowledgement) { SetEvent(acknowledgement); }
-        if (elevatedWorker && wparam == static_cast<WPARAM>(Request::ToggleMode)) { PostQuitMessage(0); }
+        if (elevatedWorker && wparam == static_cast<WPARAM>(Request::ToggleVisibility)) { PostQuitMessage(0); }
         return 0;
     }
     return DefWindowProcW(window, message, wparam, lparam);
@@ -104,7 +104,7 @@ static int crossElevation(const std::wstring& scope)
     assert(controller);
     assert(observer.Send(controller, Request::Activate));
     assert(WaitForSingleObject(ack, 10000) == WAIT_OBJECT_0);
-    assert(observer.Send(controller, Request::ToggleMode));
+    assert(observer.Send(controller, Request::ToggleVisibility));
     assert(WaitForSingleObject(launch.hProcess, 10000) == WAIT_OBJECT_0);
     DWORD result{};
     assert(GetExitCodeProcess(launch.hProcess, &result) && result == 0);
@@ -174,7 +174,8 @@ int wmain(int argc, wchar_t** argv)
     }
 
     assert(!owner.IsOwner() && !owner.FindOwner());
-    assert(!Ownership::IsRequest(0) && !Ownership::IsRequest(99));
+    // The retired mode-conversion request must not enter the v2 protocol.
+    assert(!Ownership::IsRequest(0) && !Ownership::IsRequest(2) && !Ownership::IsRequest(99));
     assert(owner.TryAcquire());
     const auto window = makeWindow();
     assert(owner.Publish(window, window));

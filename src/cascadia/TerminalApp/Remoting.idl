@@ -29,7 +29,6 @@ namespace TerminalApp
         SummonWindowBehavior();
         Boolean MoveToCurrentDesktop;
         Boolean ToggleVisibility;
-        Boolean ToggleHudInteraction;
         UInt32 DropdownDuration;
         MonitorBehavior ToMonitor;
     }

@@ -16,6 +16,16 @@ void AppHost::_HudActionRequested(const winrt::Windows::Foundation::IInspectable
     _windowManager->RequestHudAction(action);
 }
 
+void AppHost::_ExitHudRequested(const winrt::Windows::Foundation::IInspectable&,
+                                const winrt::Windows::Foundation::IInspectable&)
+{
+    _windowLogic.HudModeEnabled(false);
+    if (_windowLogic.WindowProperties().WindowName() == L"_hud")
+    {
+        _windowLogic.WindowName(L"");
+    }
+}
+
 void AppHost::_RememberHudForeground()
 {
     auto foreground = GetForegroundWindow();

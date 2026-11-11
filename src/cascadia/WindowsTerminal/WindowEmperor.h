@@ -71,6 +71,8 @@ private:
     void _notificationAreaMenuRequested(WPARAM wParam);
     void _notificationAreaMenuClicked(WPARAM wParam, LPARAM lParam) const;
     void _hotkeyPressed(long hotkeyIndex);
+    static SummonWindowSelectionArgs _makeSummonArgs(const winrt::Microsoft::Terminal::Settings::Model::GlobalSummonArgs& args);
+    void _createNamedWindow(const winrt::hstring& name);
     bool _registerHotKey(int index, const winrt::Microsoft::Terminal::Control::KeyChord& hotkey) noexcept;
     void _unregisterHotKey(int index) noexcept;
     void _setupGlobalHotkeys();

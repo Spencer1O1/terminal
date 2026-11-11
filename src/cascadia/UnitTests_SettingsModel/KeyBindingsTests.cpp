@@ -48,7 +48,7 @@ namespace SettingsModelUnitTests
         const auto json = VerifyParseSucceeded(R"json([
             { "command": "hudMode", "keys": "win+sc(41)" },
             { "command": "hudVisibility", "keys": "win+shift+sc(41)" },
-            { "command": "toggleHudMode", "keys": "win+ctrl+sc(41)" },
+            { "command": "quakeMode", "keys": "alt+sc(41)" },
             { "command": { "action": "globalSummon", "name": "named-terminal", "toggleVisibility": false, "dropdownDuration": 0, "monitor": "any" }, "keys": "ctrl+alt+f6" }
         ])json");
         const auto map = winrt::make_self<implementation::ActionMap>();
@@ -58,7 +58,7 @@ namespace SettingsModelUnitTests
         VERIFY_ARE_EQUAL(4u, hotkeys.Size());
         VERIFY_ARE_EQUAL(4u, map->KeyBindings().Size());
         const auto modeKey = KeyChord{ winrt::Windows::System::VirtualKeyModifiers::Windows | winrt::Windows::System::VirtualKeyModifiers::Control, 0, 41 };
-        VERIFY_ARE_EQUAL(ShortcutAction::ToggleHudMode, map->GetActionByKeyChord(modeKey).ActionAndArgs().Action());
+        VERIFY_IS_NULL(map->GetActionByKeyChord(modeKey));
         const auto interactionKey = KeyChord{ winrt::Windows::System::VirtualKeyModifiers::Windows, 0, 41 };
         const auto summonKey = KeyChord{ winrt::Windows::System::VirtualKeyModifiers::Control | winrt::Windows::System::VirtualKeyModifiers::Menu, static_cast<int32_t>(winrt::Windows::System::VirtualKey::F6), 0 };
         const auto interaction = map->GetActionByKeyChord(interactionKey).ActionAndArgs();
@@ -74,6 +74,15 @@ namespace SettingsModelUnitTests
                 VERIFY_IS_NOT_NULL(args);
                 VERIFY_ARE_EQUAL(L"named-terminal", args.Name());
                 VERIFY_IS_FALSE(args.ToggleVisibility());
+            }
+            else if (action.Action() == ShortcutAction::QuakeMode)
+            {
+                VERIFY_IS_NOT_NULL(args);
+                VERIFY_ARE_EQUAL(L"_quake", args.Name());
+                VERIFY_ARE_EQUAL(MonitorBehavior::ToMouse, args.Monitor());
+                VERIFY_ARE_EQUAL(DesktopBehavior::ToCurrent, args.Desktop());
+                VERIFY_IS_TRUE(args.ToggleVisibility());
+                VERIFY_ARE_EQUAL(200u, args.DropdownDuration());
             }
             else
             {

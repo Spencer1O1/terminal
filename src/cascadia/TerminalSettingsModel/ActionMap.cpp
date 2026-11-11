@@ -122,7 +122,6 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 { ShortcutAction::QuakeMode, USES_RESOURCE(L"QuakeModeCommandKey") },
                 { ShortcutAction::HudMode, USES_RESOURCE(L"HudModeCommandKey") },
                 { ShortcutAction::HudVisibility, USES_RESOURCE(L"HudVisibilityCommandKey") },
-                { ShortcutAction::ToggleHudMode, USES_RESOURCE(L"ToggleHudModeCommandKey") },
                 { ShortcutAction::Quit, USES_RESOURCE(L"QuitCommandKey") },
                 { ShortcutAction::RenameTab, USES_RESOURCE(L"ResetTabNameCommandKey") },
                 { ShortcutAction::RenameWindow, USES_RESOURCE(L"ResetWindowNameCommandKey") },
@@ -634,7 +633,7 @@ namespace winrt::Microsoft::Terminal::Settings::Model::implementation
                 // HUD and Quake actions share the global summon transport.
                 const auto action = idCmdPair->second.ActionAndArgs().Action();
                 if (action == ShortcutAction::GlobalSummon || action == ShortcutAction::QuakeMode ||
-                    action == ShortcutAction::HudMode || action == ShortcutAction::HudVisibility || action == ShortcutAction::ToggleHudMode)
+                    action == ShortcutAction::HudMode || action == ShortcutAction::HudVisibility)
                 {
                     globalHotkeys.emplace(keys, idCmdPair->second);
                 }

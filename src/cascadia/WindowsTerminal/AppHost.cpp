@@ -49,8 +49,7 @@ AppHost::AppHost(WindowEmperor* manager, const winrt::TerminalApp::AppLogic& log
     _windowManager{ manager }
 {
     _HandleCommandlineArgs(args);
-    // Remember the launching foreground even for ordinary windows: the user
-    // may convert this window to HUD after Windows has already activated it.
+    // Remember the launching foreground for the HUD's Passive input return.
     _RememberHudForeground();
 
     // _HandleCommandlineArgs will create a _windowLogic
@@ -275,6 +274,7 @@ void AppHost::Initialize()
     _revokers.IsHudWindowChanged = _windowLogic.IsHudWindowChanged(winrt::auto_revoke, { this, &AppHost::_IsHudWindowChanged });
     _revokers.SummonWindowRequested = _windowLogic.SummonWindowRequested(winrt::auto_revoke, { this, &AppHost::_SummonWindowRequested });
     _revokers.HudActionRequested = _windowLogic.HudActionRequested(winrt::auto_revoke, { this, &AppHost::_HudActionRequested });
+    _revokers.ExitHudRequested = _windowLogic.ExitHudRequested(winrt::auto_revoke, { this, &AppHost::_ExitHudRequested });
     _revokers.OpenSystemMenu = _windowLogic.OpenSystemMenu(winrt::auto_revoke, { this, &AppHost::_OpenSystemMenu });
     _revokers.QuitRequested = _windowLogic.QuitRequested(winrt::auto_revoke, { this, &AppHost::_RequestQuitAll });
     _revokers.ShowWindowChanged = _windowLogic.ShowWindowChanged(winrt::auto_revoke, { this, &AppHost::_ShowWindowChanged });
@@ -315,7 +315,7 @@ void AppHost::Initialize()
                 }
                 else if (_hudState.Current() != State::Hidden)
                 {
-                    ApplyHudAction(Action::ToggleVisibility);
+                    ApplyHudAction(Action::Hide);
                 }
             }
             else
@@ -891,7 +891,11 @@ safe_void_coroutine AppHost::HandleSummon(const winrt::TerminalApp::SummonWindow
     {
         // HUD appearance touches XAML. Serialize on the window dispatcher.
         const auto generation = _hudModeGeneration;
-        co_await wil::resume_foreground(_windowLogic.GetRoot().Dispatcher());
+        const auto dispatcher = _windowLogic.GetRoot().Dispatcher();
+        if (!dispatcher.HasThreadAccess())
+        {
+            co_await wil::resume_foreground(dispatcher);
+        }
         // Mode may have changed while this request waited on the dispatcher.
         // Do not apply stale HUD effects or hide an ordinary window.
         if (!_window || !_windowLogic || !_windowLogic.IsHudWindow() ||
@@ -904,11 +908,22 @@ safe_void_coroutine AppHost::HandleSummon(const winrt::TerminalApp::SummonWindow
 
     if (_windowLogic.IsHudWindow())
     {
-        using Microsoft::Terminal::Hud::Action;
-        const auto action = args && args.ToggleHudInteraction() ? Action::ToggleInteraction :
-                            args && args.ToggleVisibility()     ? Action::ToggleVisibility :
-                                                                  Action::Activate;
-        ApplyHudAction(action);
+        if (_changingHudState)
+        {
+            co_return;
+        }
+        {
+            _changingHudState = true;
+            const auto guard = wil::scope_exit([&] { _changingHudState = false; });
+            // Allow explicit activation before calling the same native summon
+            // path as Quake. Do not activate first: it would change its toggle
+            // decision for a visible Passive HUD.
+            LOG_HR_IF(E_FAIL, !_hudInput.SetPassive(_window->GetHandle(), false));
+            _windowLogic.SetHudMode(true, false);
+            _window->SummonWindow(args);
+        }
+        const auto visible = IsWindowVisible(_window->GetHandle()) && !IsIconic(_window->GetHandle());
+        ApplyHudAction(visible ? Microsoft::Terminal::Hud::Action::Activate : Microsoft::Terminal::Hud::Action::Hide);
     }
     else
     {

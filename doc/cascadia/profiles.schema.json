@@ -423,7 +423,6 @@
         "globalSummon",
         "hudMode",
         "hudVisibility",
-        "toggleHudMode",
         "identifyWindow",
         "identifyWindows",
         "markMode",
@@ -1842,7 +1841,7 @@
       ]
     },
     "HudModeAction": {
-      "description": "Toggle Active/Passive interaction for the existing HUD window. Does nothing when HUD mode is disabled.",
+      "description": "Toggle Active/Passive interaction for the visible HUD window. Does nothing when no HUD exists or it is hidden.",
       "allOf": [
         { "$ref": "#/$defs/ShortcutAction" },
         {
@@ -1852,7 +1851,7 @@
       ]
     },
     "HudVisibilityAction": {
-      "description": "Hide the existing HUD window or restore its remembered Active/Passive state. Does nothing when HUD mode is disabled.",
+      "description": "Create or summon the dedicated HUD window, using Quake monitor and visibility behavior. Showing the HUD activates it.",
       "allOf": [
         { "$ref": "#/$defs/ShortcutAction" },
         {
