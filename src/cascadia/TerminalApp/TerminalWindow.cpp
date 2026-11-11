@@ -1063,6 +1063,9 @@ namespace winrt::TerminalApp::implementation
     void TerminalWindow::SetStartupActions(const IVector<ActionAndArgs>& actions)
     {
         _initialContentArgs = wil::to_vector(actions);
+        // Explicit actions (including a Settings-only window) take precedence
+        // over startupActions from settings after Initialize consumes the vector.
+        _gotSettingsStartupActions = false;
     }
 
     // Method Description:

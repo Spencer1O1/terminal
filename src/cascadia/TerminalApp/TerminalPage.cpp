@@ -4562,7 +4562,7 @@ namespace winrt::TerminalApp::implementation
         {
             // Keep the dedicated HUD's terminal sessions and presentation intact.
             // The normal window's existing startup-action path opens Settings.
-            WindowRequestedArgs request{ 0, CommandlineArgs{} };
+            winrt::TerminalApp::WindowRequestedArgs request{ 0, winrt::TerminalApp::CommandlineArgs{} };
             OpenSettingsArgs settings{ SettingsTarget::SettingsUI };
             ActionAndArgs action{ ShortcutAction::OpenSettings, settings };
             request.StartupActions(winrt::single_threaded_vector<ActionAndArgs>({ std::move(action) }));

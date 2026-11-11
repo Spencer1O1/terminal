@@ -26,9 +26,14 @@ public static class HudProbe {
  [DllImport("user32.dll")]public static extern bool UnregisterHotKey(IntPtr window,int id);
  [DllImport("user32.dll")]public static extern uint GetDpiForWindow(IntPtr window);
  [DllImport("user32.dll")]public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+ [DllImport("user32.dll")]public static extern IntPtr WindowFromPoint(long point);
  [DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);
  [DllImport("user32.dll")]public static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);
  [DllImport("user32.dll")]public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
+ [DllImport("kernel32.dll")]public static extern uint GetCurrentThreadId();
+ [DllImport("user32.dll")]public static extern bool AttachThreadInput(uint a,uint b,bool attach);
+ [DllImport("user32.dll")]public static extern bool BringWindowToTop(IntPtr window);
+ public static void FocusOwned(IntPtr window){uint pid;uint foreground=GetWindowThreadProcessId(GetForegroundWindow(),out pid);uint current=GetCurrentThreadId();bool attached=foreground!=0&&foreground!=current&&AttachThreadInput(foreground,current,true);try{BringWindowToTop(window);SetForegroundWindow(window);}finally{if(attached)AttachThreadInput(foreground,current,false);}}
  public static IntPtr[] Windows(int target){var result=new List<IntPtr>();EnumWindows((window,unused)=>{uint pid;GetWindowThreadProcessId(window,out pid);if(pid==(uint)target){var name=new StringBuilder(256);GetClassNameW(window,name,256);if(name.ToString()=="CASCADIA_HOSTING_WINDOW_CLASS")result.Add(window);}return true;},IntPtr.Zero);return result.ToArray();}
  public static void Chord(byte key){keybd_event(0x11,0,0,UIntPtr.Zero);keybd_event(0x12,0,0,UIntPtr.Zero);keybd_event(key,0,0,UIntPtr.Zero);keybd_event(key,0,2,UIntPtr.Zero);keybd_event(0x12,0,2,UIntPtr.Zero);keybd_event(0x11,0,2,UIntPtr.Zero);}
 }
@@ -64,6 +69,7 @@ $receipts=Join-Path $EvidenceDirectory 'receipts';New-Item -ItemType Directory $
 $profileId=[guid]::NewGuid().ToString('B')
 $fixtureSettings=@{
  hudActiveOpacity=35;hudHorizontalPadding=48;hudVerticalPadding=24;initialCols=60;initialRows=20;defaultProfile=$profileId
+ startupActions=('new-tab -p '+$profileId)
  disabledProfileSources=@('Microsoft.WSL','Windows.Terminal.PowershellCore','Windows.Terminal.Azure','Windows.Terminal.VisualStudio','Windows.Terminal.SSH')
  profiles=@{list=@(@{guid=$profileId;name='HUD owned lifecycle fixture';commandline=('"'+(Join-Path $PSHOME 'pwsh.exe')+'" -NoProfile -ExecutionPolicy Bypass -File "'+(Join-Path $PSScriptRoot 'SmokeShell.ps1')+'" -Receipt "'+$receipts+'"');startingDirectory=$EvidenceDirectory;elevate=$false;opacity=65;useAcrylic=$false;scrollbarState='visible';showMarksOnScrollbar=$true;font=@{face='Consolas';size=18};background='#000000';foreground='#FFFFFF'})}
  keybindings=@(@{keys='win+sc(41)';command='unbound'},@{keys='win+shift+sc(41)';command='unbound'},@{keys='alt+sc(41)';command='unbound'},@{keys='ctrl+alt+f13';id='Terminal.HudMode'},@{keys='ctrl+alt+f14';id='Terminal.HudVisibility'},@{keys='ctrl+alt+f6';id='Terminal.OpenSettingsUI'})
@@ -76,13 +82,28 @@ $cursor=[System.Windows.Forms.Cursor]::Position
 $process=$null;$second=$null;$script:additionalProcesses=@()
 try{
  foreach($key in @(0x75,0x7C,0x7D)){if(-not[HudProbe]::RegisterHotKey([IntPtr]::Zero,$key,0x4003,$key)){throw 'A fixture shortcut is occupied.'};[void][HudProbe]::UnregisterHotKey([IntPtr]::Zero,$key)}
- $background.Show();[void][HudProbe]::SetForegroundWindow($background.Handle);Wait-Ui 200
+ # Bootstrap focus only through an owned, hit-tested window. A caller in a
+ # different terminal process need not grant SetForegroundWindow permission.
+ $background.TopMost=$true;$background.Show();[HudProbe]::FocusOwned($background.Handle);Wait-Ui 150
+ $clickX=$screen.Left+40;$clickY=$screen.Top+40
+ [void][HudProbe]::SetCursorPos($clickX,$clickY)
+ $point=([long]$clickY -shl 32) -bor ([long]$clickX -band 0xffffffffL)
+ Assert-HudDesktopIsolation
+ if([HudProbe]::WindowFromPoint($point) -ne $background.Handle){
+  $hit=[HudProbe]::WindowFromPoint($point);$owner=0u;[void][HudProbe]::GetWindowThreadProcessId($hit,[ref]$owner)
+  $r=[HudProbe+Rect]::new();[void][HudProbe]::GetWindowRect($background.Handle,[ref]$r)
+  throw "Owned focus sink is covered; stopping before input. Hit=$hit PID=$owner Expected=$($background.Handle) Point=$clickX,$clickY Bounds=$($r.Left),$($r.Top),$($r.Right),$($r.Bottom) Visible=$($background.Visible)"
+ }
+ [HudProbe]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[HudProbe]::mouse_event(4,0,0,0,[UIntPtr]::Zero);Wait-Ui 150
+ $background.TopMost=$false;$script:clicks=0
+ if([HudProbe]::GetForegroundWindow() -ne $background.Handle){throw 'Owned focus sink did not activate; stopping before keyboard input.'}
  $process=Start-Process -FilePath $exe.FullName -ArgumentList '-w','hud-lifecycle-seed','-p',$profileId -WorkingDirectory $portableRoot -PassThru
  $normal=Wait-NewWindow $process;Wait-Ui 1000
  $normalShell=@(Shell-Records)[0].pid
  Assert-Probe ($null -ne $normalShell) 'normal terminal shell started'
  [void][HudProbe]::SetWindowPos($normal,[IntPtr]::Zero,$screen.Left+60,$screen.Top+60,900,650,0x14);Wait-Ui 300
  $before=Read-State $normal
+ [void][HudProbe]::SetForegroundWindow($normal);Wait-Ui 200
  Invoke-FixtureChord 0x7C;Wait-Ui 200
  Assert-Probe (@([HudProbe]::Windows($process.Id)).Count -eq 1 -and ((Read-State $normal).exstyle -band 0x28) -eq 0) 'interaction with no HUD left the normal terminal unchanged'
  [void][HudProbe]::SetCursorPos($screen.Right-40,$screen.Bottom-80)
@@ -105,6 +126,8 @@ try{
  [void][HudProbe]::SetForegroundWindow($background.Handle);Wait-Ui 150
  [void][HudProbe]::SetCursorPos($screen.Right-40,$screen.Bottom-80)
  Assert-HudDesktopIsolation -OwnedProcessIds @($process.Id)
+ $point=([long]($screen.Bottom-80) -shl 32) -bor ([long]($screen.Right-40) -band 0xffffffffL)
+ if([HudProbe]::WindowFromPoint($point) -ne $background.Handle){throw 'Owned pointer sink is covered; stopping before input.'}
  [HudProbe]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[HudProbe]::mouse_event(4,0,0,0,[UIntPtr]::Zero);Wait-Ui 200
  Assert-Probe ($script:clicks -eq 1) 'Passive pointer input reached the owned background'
  Invoke-FixtureChord 0x7D;Wait-Ui 500
